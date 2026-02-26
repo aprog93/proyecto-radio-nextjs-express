@@ -1,66 +1,49 @@
 import { Router, Request, Response } from 'express';
 
-import { AuthService } from '../services/auth.js';
+import { NewsService } from '../services/news.js';
 import { authenticateToken, requireAdmin } from '../middleware/authMiddleware.js';
-import { CreateNewsRequest, News } from '../types/database.js';
+import { CreateNewsRequest } from '../types/database.js';
 
 export function createNewsRouter(): Router {
   const router = Router();
-  const authService = new AuthService();
+  const newsService = new NewsService();
 
-  // Middleware para inyectar authService
-  router.use((req, res, next) => {
-    req.authService = authService;
-    next();
-  });
-
-  router.get('/', (req: Request, res: Response) => {
+  // GET / - Obtiene noticias publicadas
+  router.get('/', async (req: Request, res: Response) => {
     try {
-      const { page = 1, limit = 10, search } = req.query;
-      const offset = ((Number(page) || 1) - 1) * (Number(limit) || 10);
+      const page = Number(req.query.page) || 1;
+      const limit = Number(req.query.limit) || 10;
+      const search = req.query.search as string | undefined;
 
-      let query = `SELECT * FROM news WHERE published = 1 AND (expiresAt IS NULL OR expiresAt > CURRENT_TIMESTAMP)`;
-      const params: any[] = [];
+      const { news, total } = await newsService.getPublishedNews(page, limit, search);
 
-      if (search) {
-        query += ` AND (title LIKE ? OR content LIKE ?)`;
-        params.push(`%${search}%`, `%${search}%`);
-      }
-
-      query += ` ORDER BY publishedAt DESC LIMIT ? OFFSET ?`;
-      params.push(Number(limit) || 10, offset);
-
-       const news = db.getAll<any>(query, params);
-       const count = db.count(
-         `SELECT * FROM news WHERE published = 1 AND (expiresAt IS NULL OR expiresAt > CURRENT_TIMESTAMP)`
-       );
-
-       res.json({
-         success: true,
-         data: news,
-         total: count,
-         page: Number(page) || 1,
-         limit: Number(limit) || 10,
-       });
+      res.json({
+        success: true,
+        data: news,
+        total,
+        page,
+        limit,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al obtener noticias';
       res.status(500).json({ success: false, error: message });
     }
   });
 
-  router.get('/:id', (req: Request, res: Response) => {
+  // GET /:id - Obtiene una noticia publicada por ID
+  router.get('/:id', async (req: Request, res: Response) => {
     try {
-      const news = db.getOne<News>(
-        `SELECT * FROM news WHERE id = ? AND published = 1 AND (expiresAt IS NULL OR expiresAt > CURRENT_TIMESTAMP)`,
-        [Number(req.params.id)]
-      );
+      const id = Number(req.params.id);
+      const news = await newsService.getPublishedNewsById(id);
 
       if (!news) {
         res.status(404).json({ success: false, error: 'Noticia no encontrada' });
         return;
       }
 
-       db.run('UPDATE news SET viewCount = viewCount + 1 WHERE id = ?', [Number(req.params.id)]);
+      // Incrementar contador de vistas
+      await newsService.incrementViewCount(id);
+
       res.json({ success: true, data: news });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al obtener noticia';
@@ -68,113 +51,37 @@ export function createNewsRouter(): Router {
     }
   });
 
-  router.post('/', authenticateToken, requireAdmin, (req: Request, res: Response) => {
+  // POST / - Crea una noticia (solo admin)
+  router.post('/', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
-      const { title, content, published, expiresAt }: CreateNewsRequest = req.body;
+      const data: CreateNewsRequest = req.body;
+      data.author_id = req.userId;
 
-      if (!title || !content) {
-        res.status(400).json({
-          success: false,
-          error: 'Título y contenido son requeridos',
-        });
-        return;
-      }
-
-      if (content.length > 1500) {
-        res.status(400).json({ success: false, error: 'El contenido no puede exceder 1500 caracteres' });
-        return;
-      }
-
-      if (expiresAt) {
-        const expireDate = new Date(expiresAt);
-        const maxDate = new Date();
-        maxDate.setDate(maxDate.getDate() + 30);
-
-        if (expireDate > maxDate) {
-          res.status(400).json({
-            success: false,
-            error: 'La fecha de expiración no puede ser más de 30 días en el futuro',
-          });
-          return;
-        }
-      }
-
-      const result = db.run(
-        `INSERT INTO news (title, content, author_id, published, expiresAt, publishedAt)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          title,
-          content,
-          req.userId,
-          published ? 1 : 0,
-          expiresAt || null,
-          published ? new Date().toISOString() : null
-        ]
-      );
-      console.log('NEWS POST - Insert result', result);
-
-      const newNews = db.getOne<News>('SELECT * FROM news WHERE id = ?', [result.lastID]);
-      console.log('NEWS POST - Created news', newNews);
+      const news = await newsService.createNews(data);
 
       res.status(201).json({
         success: true,
         message: 'Noticia creada exitosamente',
-        data: newNews,
+        data: news,
       });
     } catch (err) {
-      console.error('NEWS POST - Error:', err);
       const message = err instanceof Error ? err.message : 'Error al crear noticia';
       res.status(400).json({ success: false, error: message });
     }
   });
 
-  router.put('/:id', authenticateToken, requireAdmin, (req: Request, res: Response) => {
+  // PUT /:id - Actualiza una noticia (solo admin)
+  router.put('/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
-      const { title, content, published, expiresAt }: CreateNewsRequest = req.body;
       const id = Number(req.params.id);
+      const data: Partial<CreateNewsRequest> = req.body;
 
-      const news = db.getOne<any>('SELECT * FROM news WHERE id = ?', [id]) as News | undefined;
-      if (!news) {
-        res.status(404).json({ success: false, error: 'Noticia no encontrada' });
-        return;
-      }
-
-      if (content && content.length > 1500) {
-        res.status(400).json({ success: false, error: 'El contenido no puede exceder 1500 caracteres' });
-        return;
-      }
-
-      const updates: string[] = [];
-      const values: any[] = [];
-
-      if (title) {
-        updates.push('title = ?');
-        values.push(title);
-      }
-      if (content) {
-        updates.push('content = ?');
-        values.push(content);
-      }
-      if (published !== undefined) {
-        updates.push('published = ?, publishedAt = ?');
-        values.push(published ? 1 : 0, published ? new Date().toISOString() : null);
-      }
-      if (expiresAt !== undefined) {
-        updates.push('expiresAt = ?');
-        values.push(expiresAt || null);
-      }
-
-      updates.push('updatedAt = CURRENT_TIMESTAMP');
-      values.push(id);
-
-      db.run(`UPDATE news SET ${updates.join(', ')} WHERE id = ?`, values);
-
-      const updatedNews = db.getOne<News>('SELECT * FROM news WHERE id = ?', [id]);
+      const news = await newsService.updateNews(id, data);
 
       res.json({
         success: true,
         message: 'Noticia actualizada exitosamente',
-        data: updatedNews,
+        data: news,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al actualizar noticia';
@@ -182,17 +89,13 @@ export function createNewsRouter(): Router {
     }
   });
 
-  router.delete('/:id', authenticateToken, requireAdmin, (req: Request, res: Response) => {
+  // DELETE /:id - Elimina una noticia (solo admin)
+  router.delete('/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = Number(req.params.id);
-      const news = db.getOne<any>('SELECT * FROM news WHERE id = ?', [id]) as News | undefined;
 
-      if (!news) {
-        res.status(404).json({ success: false, error: 'Noticia no encontrada' });
-        return;
-      }
+      await newsService.deleteNews(id);
 
-      db.run('DELETE FROM news WHERE id = ?', [id]);
       res.json({ success: true, message: 'Noticia eliminada exitosamente' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al eliminar noticia';

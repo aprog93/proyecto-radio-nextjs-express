@@ -7,37 +7,46 @@ import { PlayerProvider } from "@/context/PlayerContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
+
+// Eager import for critical pages (homepage, player, auth)
 import Index from "./pages/Index";
 import NowPlaying from "./pages/NowPlaying";
-import Schedule from "./pages/Schedule";
-import Participate from "./pages/Participate";
-import Community from "./pages/Community";
-import Donate from "./pages/Donate";
-import About from "./pages/About";
-import Terms from "./pages/Terms";
-import Programs from "./pages/Programs";
-import Events from "./pages/Events";
-import EventDetail from "./pages/EventDetail";
-import Shop from "./pages/Shop";
-import ProductDetail from "./pages/ProductDetail";
-import Cart from "./pages/Cart";
-import Blog from "./pages/Blog";
-import BlogDetail from "./pages/BlogDetail";
-import News from "./pages/News";
-import NewsDetail from "./pages/NewsDetail";
-import History from "./pages/History";
-import HowToParticipate from "./pages/HowToParticipate";
-import Support from "./pages/Support";
-import Team from "./pages/Team";
-import Contact from "./pages/Contact";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Portal from "./pages/Portal";
-import ProfileSettings from "./pages/ProfileSettings";
-import AdminDashboard from "./pages/AdminDashboard";
-import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
-import { Dashboard, NowPlayingPage as NowPlayingPageModule, PlaylistsPage } from "@/modules/azuracast";
+
+// Lazy import for secondary pages
+import {
+  withSuspense,
+  LazySchedule,
+  LazyParticipate,
+  LazyCommunity,
+  LazyDonate,
+  LazyAbout,
+  LazyTerms,
+  LazyPrograms,
+  LazyHistory,
+  LazyHowToParticipate,
+  LazySupport,
+  LazyTeam,
+  LazyContact,
+  LazyPortal,
+  LazyProfileSettings,
+  LazyAdminDashboard,
+  LazyResetPassword,
+  LazyBlog,
+  LazyBlogDetail,
+  LazyNews,
+  LazyNewsDetail,
+  LazyEvents,
+  LazyEventDetail,
+  LazyShop,
+  LazyProductDetail,
+  LazyCart,
+  LazyDashboard,
+  LazyNowPlayingPageModule,
+  LazyPlaylistsPage,
+} from "@/lib/lazy-routes";
 
 const queryClient = new QueryClient();
 
@@ -52,40 +61,53 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route element={<Layout />}>
+                  {/* Critical pages - eager loaded */}
                   <Route path="/" element={<Index />} />
                   <Route path="/now-playing" element={<NowPlaying />} />
-                  <Route path="/schedule" element={<Schedule />} />
-                  <Route path="/programacion" element={<Schedule />} />
-                  <Route path="/participate" element={<Participate />} />
-                  <Route path="/community" element={<Community />} />
-                  <Route path="/donate" element={<Donate />} />
-                  <Route path="/about" element={<About />} />
-                  <Route path="/terms" element={<Terms />} />
-                  <Route path="/programas" element={<Programs />} />
-                   <Route path="/event" element={<Events />} />
-                   <Route path="/event/:id" element={<EventDetail />} />
-                    <Route path="/shop" element={<Shop />} />
-                    <Route path="/shop/:id" element={<ProductDetail />} />
-                   <Route path="/shop/cart" element={<Cart />} />
-                    <Route path="/blog" element={<Blog />} />
-                    <Route path="/blog/:slug" element={<BlogDetail />} />
-                    <Route path="/news" element={<News />} />
-                    <Route path="/news/:id" element={<NewsDetail />} />
-                    <Route path="/historia" element={<History />} />
-                  <Route path="/como-participar" element={<HowToParticipate />} />
-                  <Route path="/apoyanos" element={<Support />} />
-                  <Route path="/about-us" element={<Team />} />
-                  <Route path="/contactus" element={<Contact />} />
                   <Route path="/web/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
-                   <Route path="/portal" element={<Portal />} />
-                   <Route path="/portal/settings" element={<ProfileSettings />} />
-                   <Route path="/admin" element={<AdminDashboard />} />
-                   <Route path="/reset-password" element={<ResetPassword />} />
-                   <Route path="/stream-dashboard" element={<Dashboard />} />
-                   <Route path="/stream-now-playing" element={<NowPlayingPageModule />} />
-                   <Route path="/playlists" element={<PlaylistsPage />} />
+
+                  {/* Secondary pages - lazy loaded */}
+                  <Route path="/schedule" element={withSuspense(LazySchedule)()} />
+                  <Route path="/programacion" element={withSuspense(LazySchedule)()} />
+                  <Route path="/participate" element={withSuspense(LazyParticipate)()} />
+                  <Route path="/community" element={withSuspense(LazyCommunity)()} />
+                  <Route path="/donate" element={withSuspense(LazyDonate)()} />
+                  <Route path="/about" element={withSuspense(LazyAbout)()} />
+                  <Route path="/terms" element={withSuspense(LazyTerms)()} />
+                  <Route path="/programas" element={withSuspense(LazyPrograms)()} />
+
+                  {/* Info pages - lazy loaded */}
+                  <Route path="/historia" element={withSuspense(LazyHistory)()} />
+                  <Route path="/como-participar" element={withSuspense(LazyHowToParticipate)()} />
+                  <Route path="/apoyanos" element={withSuspense(LazySupport)()} />
+                  <Route path="/about-us" element={withSuspense(LazyTeam)()} />
+                  <Route path="/contactus" element={withSuspense(LazyContact)()} />
+
+                  {/* User pages - lazy loaded */}
+                  <Route path="/portal" element={withSuspense(LazyPortal)()} />
+                  <Route path="/portal/settings" element={withSuspense(LazyProfileSettings)()} />
+                  <Route path="/admin" element={withSuspense(LazyAdminDashboard)()} />
+                  <Route path="/reset-password" element={withSuspense(LazyResetPassword)()} />
+
+                  {/* Content pages - lazy loaded */}
+                  <Route path="/event" element={withSuspense(LazyEvents)()} />
+                  <Route path="/event/:id" element={withSuspense(LazyEventDetail)()} />
+                  <Route path="/shop" element={withSuspense(LazyShop)()} />
+                  <Route path="/shop/:id" element={withSuspense(LazyProductDetail)()} />
+                  <Route path="/shop/cart" element={withSuspense(LazyCart)()} />
+                  <Route path="/blog" element={withSuspense(LazyBlog)()} />
+                  <Route path="/blog/:slug" element={withSuspense(LazyBlogDetail)()} />
+                  <Route path="/news" element={withSuspense(LazyNews)()} />
+                  <Route path="/news/:id" element={withSuspense(LazyNewsDetail)()} />
+
+                  {/* AzuraCast modules - lazy loaded */}
+                  <Route path="/stream-dashboard" element={withSuspense(LazyDashboard)()} />
+                  <Route path="/stream-now-playing" element={withSuspense(LazyNowPlayingPageModule)()} />
+                  <Route path="/playlists" element={withSuspense(LazyPlaylistsPage)()} />
                 </Route>
+
+                {/* Not found - eager loaded */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

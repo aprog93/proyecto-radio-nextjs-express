@@ -1,17 +1,14 @@
 import { Router, Request, Response } from 'express';
 
 import { AuthService } from '../services/auth.js';
-import { authenticateToken, requireAuth } from '../middleware/authMiddleware.js';
-import { UpdateProfileRequest, UserProfile } from '../types/database.js';
+import { UserProfileService } from '../services/user-profile.js';
+import { authenticateToken } from '../middleware/authMiddleware.js';
+import { UpdateProfileRequest } from '../types/database.js';
 
 export function createUserRouter(): Router {
   const router = Router();
   const authService = new AuthService();
-
-  router.use((req, res, next) => {
-    req.authService = authService;
-    next();
-  });
+  const profileService = new UserProfileService();
 
   /**
    * GET /api/users/profile
@@ -24,19 +21,18 @@ export function createUserRouter(): Router {
         return;
       }
 
-       const user = await authService.getUserById(req.userId);
-       const profile = db.getOne<UserProfile>(
-         'SELECT * FROM user_profiles WHERE userId = ?',
-         [req.userId]
-       );
+      const [user, profile] = await Promise.all([
+        authService.getUserById(req.userId),
+        profileService.getProfileByUserId(req.userId),
+      ]);
 
-       res.json({
-         success: true,
-         data: {
-           user,
-           profile,
-         },
-       });
+      res.json({
+        success: true,
+        data: {
+          user,
+          profile,
+        },
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al obtener perfil';
       res.status(500).json({ success: false, error: message });
@@ -67,57 +63,27 @@ export function createUserRouter(): Router {
 
       // Actualizar perfil
       if (firstName || lastName || phone || address || city || country || postalCode) {
-        const updates: string[] = [];
-        const values: any[] = [];
-
-        if (firstName !== undefined) {
-          updates.push('firstName = ?');
-          values.push(firstName);
-        }
-        if (lastName !== undefined) {
-          updates.push('lastName = ?');
-          values.push(lastName);
-        }
-        if (phone !== undefined) {
-          updates.push('phone = ?');
-          values.push(phone);
-        }
-        if (address !== undefined) {
-          updates.push('address = ?');
-          values.push(address);
-        }
-        if (city !== undefined) {
-          updates.push('city = ?');
-          values.push(city);
-        }
-        if (country !== undefined) {
-          updates.push('country = ?');
-          values.push(country);
-        }
-        if (postalCode !== undefined) {
-          updates.push('postalCode = ?');
-          values.push(postalCode);
-        }
-
-        if (updates.length > 0) {
-          updates.push('updatedAt = CURRENT_TIMESTAMP');
-          values.push(req.userId);
-
-           db.run(`UPDATE user_profiles SET ${updates.join(', ')} WHERE userId = ?`, values);
-        }
+        await profileService.updateProfile(req.userId, {
+          firstName,
+          lastName,
+          phone,
+          address,
+          city,
+          country,
+          postalCode,
+        });
       }
 
-       const user = await authService.getUserById(req.userId);
-       const profile = db.getOne<UserProfile>(
-         'SELECT * FROM user_profiles WHERE userId = ?',
-         [req.userId]
-       );
+      const [user, profile] = await Promise.all([
+        authService.getUserById(req.userId),
+        profileService.getProfileByUserId(req.userId),
+      ]);
 
-       res.json({
-         success: true,
-         message: 'Perfil actualizado exitosamente',
-         data: { user, profile },
-       });
+      res.json({
+        success: true,
+        message: 'Perfil actualizado exitosamente',
+        data: { user, profile },
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al actualizar perfil';
       res.status(500).json({ success: false, error: message });

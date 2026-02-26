@@ -1,75 +1,62 @@
 import { Router, Request, Response } from 'express';
 
 import { AuthService } from '../services/auth.js';
+import { UserProfileService } from '../services/user-profile.js';
+import { AdminService } from '../services/admin.js';
 import { authenticateToken, requireAdmin } from '../middleware/authMiddleware.js';
-import { User, UserRole } from '../types/database.js';
+import { UserRole } from '../types/database.js';
 
 export function createAdminRouter(): Router {
   const router = Router();
   const authService = new AuthService();
-
-  router.use((req, res, next) => {
-    req.authService = authService;
-    next();
-  });
+  const profileService = new UserProfileService();
+  const adminService = new AdminService();
 
   // GET /api/admin/users
-   router.get('/users', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-     try {
-       const { page = 1, limit = 20, search } = req.query;
-       const offset = ((Number(page) || 1) - 1) * (Number(limit) || 20);
+  router.get('/users', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const page = Number(req.query.page) || 1;
+      const limit = Number(req.query.limit) || 20;
+      const search = req.query.search as string | undefined;
 
-       let query = 'SELECT id, email, displayName, role, avatar, createdAt, isActive FROM users';
-       const params: any[] = [];
+      const { users, total } = await adminService.listUsers(page, limit, search);
 
-       if (search) {
-         query += ' WHERE email LIKE ? OR displayName LIKE ?';
-         params.push(`%${search}%`, `%${search}%`);
-       }
+      res.json({
+        success: true,
+        data: users,
+        total,
+        page,
+        limit,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al obtener usuarios';
+      res.status(500).json({ success: false, error: message });
+    }
+  });
 
-       query += ' LIMIT ? OFFSET ?';
-       params.push(Number(limit) || 20, offset);
+  // GET /api/admin/users/:id
+  router.get('/users/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = Number(req.params.id);
+      const [user, profile] = await Promise.all([
+        authService.getUserById(userId),
+        profileService.getProfileByUserId(userId),
+      ]);
 
-       const users = db.getAll<User>(query, params);
-       const total = db.count('SELECT COUNT(*) as count FROM users', []);
+      if (!user) {
+        res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+        return;
+      }
 
-       res.json({
-         success: true,
-         data: users,
-         total: total || 0,
-         page: Number(page) || 1,
-         limit: Number(limit) || 20,
-       });
-     } catch (err) {
-       const message = err instanceof Error ? err.message : 'Error al obtener usuarios';
-       res.status(500).json({ success: false, error: message });
-     }
-   });
-
-   // GET /api/admin/users/:id
-   router.get('/users/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-     try {
-       const user = await authService.getUserById(Number(req.params.id));
-
-       if (!user) {
-         res.status(404).json({ success: false, error: 'Usuario no encontrado' });
-         return;
-       }
-
-       const profile = db.getOne<any>(
-         'SELECT * FROM user_profiles WHERE userId = ?',
-         [Number(req.params.id)]
-       );
-
-       res.json({
-         success: true,
-         data: { user, profile },
-       });
-     } catch (err) {
-       const message = err instanceof Error ? err.message : 'Error al obtener usuario';
-       res.status(500).json({ success: false, error: message });
-     }
-   });
+      res.json({
+        success: true,
+        data: { user, profile },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al obtener usuario';
+      res.status(500).json({ success: false, error: message });
+    }
+  });
 
   // POST /api/admin/users
   router.post('/users', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
@@ -126,9 +113,9 @@ export function createAdminRouter(): Router {
         await authService.updateUserRole(userId, role as UserRole);
       }
 
-       if (isActive !== undefined) {
-         db.run('UPDATE users SET isActive = ? WHERE id = ?', [isActive ? 1 : 0, userId]);
-       }
+      if (isActive !== undefined) {
+        await authService.updateUser(userId, { isActive } as any);
+      }
 
       const updatedUser = await authService.getUserById(userId);
 
@@ -158,37 +145,20 @@ export function createAdminRouter(): Router {
     }
   });
 
-   // GET /api/admin/stats
-   router.get('/stats', authenticateToken, requireAdmin, (req: Request, res: Response) => {
-     try {
-       const stats = {
-         totalUsers: db.count('SELECT COUNT(*) as count FROM users', []),
-         activeUsers: db.count('SELECT COUNT(*) as count FROM users WHERE isActive = 1', []),
-         admins: db.count('SELECT COUNT(*) as count FROM users WHERE role = "admin"', []),
-         listeners: db.count('SELECT COUNT(*) as count FROM users WHERE role = "listener"', []),
-         totalBlogs: db.count('SELECT COUNT(*) as count FROM blogs', []),
-         publishedBlogs: db.count('SELECT COUNT(*) as count FROM blogs WHERE published = 1', []),
-         totalNews: db.count('SELECT COUNT(*) as count FROM news', []),
-         publishedNews: db.count('SELECT COUNT(*) as count FROM news WHERE published = 1', []),
-         totalEvents: db.count('SELECT COUNT(*) as count FROM events', []),
-         publishedEvents: db.count('SELECT COUNT(*) as count FROM events WHERE published = 1', []),
-         totalProducts: db.count('SELECT COUNT(*) as count FROM products', []),
-         publishedProducts: db.count('SELECT COUNT(*) as count FROM products WHERE published = 1', []),
-         totalDonations: {
-           count: db.count('SELECT COUNT(*) as count FROM donations', []),
-           amount: (db.getOne<any>('SELECT SUM(amount) as amount FROM donations', []) as any)?.amount || 0,
-         },
-       };
+  // GET /api/admin/stats
+  router.get('/stats', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const stats = await adminService.getStats();
 
-       res.json({
-         success: true,
-         data: stats,
-       });
-     } catch (err) {
-       const message = err instanceof Error ? err.message : 'Error al obtener estadísticas';
-       res.status(500).json({ success: false, error: message });
-     }
-   });
+      res.json({
+        success: true,
+        data: stats,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al obtener estadísticas';
+      res.status(500).json({ success: false, error: message });
+    }
+  });
 
   return router;
 }

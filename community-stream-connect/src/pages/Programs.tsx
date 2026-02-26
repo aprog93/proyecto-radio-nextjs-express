@@ -1,45 +1,40 @@
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Search, Filter, Radio, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-
-interface Programa {
-  id: string;
-  nombre: string;
-  conductor: string | null;
-  descripcion: string | null;
-  categoria: string | null;
-  imagen_url: string | null;
-  horario: any;
-}
+import { useState, useMemo } from "react";
+import { api } from "@/lib/api";
+import { useApi } from "@/hooks/use-api";
+import { ScheduleEvent } from "@/lib/api";
 
 const Programs = () => {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const [programas, setProgramas] = useState<Programa[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    supabase
-      .from("programas")
-      .select("id, nombre, conductor, descripcion, categoria, imagen_url, horario")
-      .eq("activo", true)
-      .order("nombre")
-      .then(({ data }) => {
-        setProgramas(data || []);
-        setLoading(false);
-      });
-  }, []);
+  // Fetch schedule events from backend
+  const { data: scheduleData, loading, error } = useApi(
+    () => api.schedule.getAll(),
+    { autoFetch: true }
+  );
 
-  const uniqueCategories = [...new Set(programas.map((p) => p.categoria).filter(Boolean))] as string[];
+  const programs = useMemo(() => scheduleData || [], [scheduleData]);
 
-  const filtered = programas.filter((p) => {
-    const matchSearch = p.nombre.toLowerCase().includes(search.toLowerCase()) || (p.conductor || "").toLowerCase().includes(search.toLowerCase());
-    const matchCat = category === "all" || p.categoria === category;
-    return matchSearch && matchCat;
-  });
+  // Extract unique categories from programs (using title for simplicity)
+  const uniqueCategories = useMemo(() => {
+    // Group programs by day of week for category filtering
+    const days = new Set(programs.map((p) => p.dayOfWeek));
+    return Array.from(days).sort() as number[];
+  }, [programs]);
+
+  // Filter programs by search and category (day)
+  const filtered = useMemo(() => {
+    return programs.filter((p) => {
+      const matchSearch = p.title.toLowerCase().includes(search.toLowerCase()) || 
+                         (p.host || "").toLowerCase().includes(search.toLowerCase());
+      const matchDay = category === "all" || p.dayOfWeek === parseInt(category);
+      return matchSearch && matchDay;
+    });
+  }, [programs, search, category]);
 
   return (
     <div className="min-h-screen py-20 px-4">
@@ -67,17 +62,23 @@ const Programs = () => {
               >
                 {t("programs.all")}
               </button>
-              {uniqueCategories.map((cat) => (
+              {uniqueCategories.map((day) => (
                 <button
-                  key={cat}
-                  onClick={() => setCategory(cat)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${category === cat ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}
+                  key={day}
+                  onClick={() => setCategory(day.toString())}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${category === day.toString() ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}
                 >
-                  {t(`programs.cat_${cat}`, cat)}
+                  {t(`common.day_${day}`, `Day ${day}`)}
                 </button>
               ))}
             </div>
           </div>
+
+          {error && (
+            <div className="p-4 mb-8 rounded-lg bg-destructive/10 border border-destructive/20">
+              <p className="text-destructive text-sm">{typeof error === 'object' ? error.message : String(error)}</p>
+            </div>
+          )}
 
           {loading ? (
             <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
@@ -94,22 +95,22 @@ const Programs = () => {
                   className="rounded-2xl border border-border bg-card overflow-hidden group hover:border-primary/30 transition-colors"
                 >
                   <div className="h-40 bg-secondary flex items-center justify-center overflow-hidden">
-                    {program.imagen_url ? (
-                      <img src={program.imagen_url} alt={program.nombre} className="w-full h-full object-cover" />
+                    {program.image ? (
+                      <img src={program.image} alt={program.title} className="w-full h-full object-cover" />
                     ) : (
                       <Radio className="w-12 h-12 text-primary/30" />
                     )}
                   </div>
                   <div className="p-6">
-                    <h3 className="font-display text-lg font-semibold text-foreground mb-1">{program.nombre}</h3>
-                    {program.categoria && (
-                      <p className="text-xs text-primary font-medium mb-2">{t(`programs.cat_${program.categoria}`, program.categoria)}</p>
+                    <h3 className="font-display text-lg font-semibold text-foreground mb-1">{program.title}</h3>
+                    <p className="text-xs text-primary font-medium mb-2">
+                      {t(`common.day_${program.dayOfWeek}`, `Day ${program.dayOfWeek}`)} • {program.startTime} - {program.endTime}
+                    </p>
+                    {program.description && (
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-3">{program.description}</p>
                     )}
-                    {program.descripcion && (
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-3">{program.descripcion}</p>
-                    )}
-                    {program.conductor && (
-                      <span className="text-xs text-muted-foreground">🎙️ {program.conductor}</span>
+                    {program.host && (
+                      <span className="text-xs text-muted-foreground">🎙️ {program.host}</span>
                     )}
                   </div>
                 </motion.div>

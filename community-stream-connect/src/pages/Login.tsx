@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
   const { t } = useTranslation();
-  const { signIn, user } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
@@ -17,7 +17,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
 
   // Redirect if already logged in
-  if (user) {
+  if (isAuthenticated) {
     navigate("/portal", { replace: true });
     return null;
   }
@@ -25,12 +25,15 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) {
-      toast({ title: "Error", description: error, variant: "destructive" });
-    } else {
+    try {
+      await login(email, password);
+      toast({ title: "¡Bienvenido!", description: "Has iniciado sesión correctamente." });
       navigate("/portal");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error al iniciar sesión";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
   };
 

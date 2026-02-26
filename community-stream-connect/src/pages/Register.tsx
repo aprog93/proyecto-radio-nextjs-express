@@ -8,13 +8,13 @@ import { useToast } from "@/hooks/use-toast";
 
 const Register = () => {
   const { t } = useTranslation();
-  const { signUp, user } = useAuth();
+  const { register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [formData, setFormData] = useState({ name: "", email: "", password: "", confirmPassword: "" });
   const [loading, setLoading] = useState(false);
 
-  if (user) {
+  if (isAuthenticated) {
     navigate("/portal", { replace: true });
     return null;
   }
@@ -30,13 +30,15 @@ const Register = () => {
       return;
     }
     setLoading(true);
-    const { error } = await signUp(formData.email, formData.password, formData.name);
-    setLoading(false);
-    if (error) {
-      toast({ title: "Error", description: error, variant: "destructive" });
-    } else {
-      toast({ title: "¡Cuenta creada!", description: "Revisa tu email para confirmar tu cuenta." });
-      navigate("/web/login");
+    try {
+      await register(formData.email, formData.password, formData.name);
+      toast({ title: "¡Cuenta creada!", description: "Redirigiendo al portal..." });
+      navigate("/portal");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error al registrarse";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
   };
 

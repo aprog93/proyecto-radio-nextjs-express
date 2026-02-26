@@ -19,9 +19,12 @@ import Programs from "./pages/Programs";
 import Events from "./pages/Events";
 import EventDetail from "./pages/EventDetail";
 import Shop from "./pages/Shop";
+import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import Blog from "./pages/Blog";
 import BlogDetail from "./pages/BlogDetail";
+import News from "./pages/News";
+import NewsDetail from "./pages/NewsDetail";
 import History from "./pages/History";
 import HowToParticipate from "./pages/HowToParticipate";
 import Support from "./pages/Support";
@@ -60,11 +63,14 @@ const App = () => (
                   <Route path="/programas" element={<Programs />} />
                    <Route path="/event" element={<Events />} />
                    <Route path="/event/:id" element={<EventDetail />} />
-                   <Route path="/shop" element={<Shop />} />
-                  <Route path="/shop/cart" element={<Cart />} />
-                   <Route path="/blog" element={<Blog />} />
-                   <Route path="/blog/:slug" element={<BlogDetail />} />
-                   <Route path="/historia" element={<History />} />
+                    <Route path="/shop" element={<Shop />} />
+                    <Route path="/shop/:id" element={<ProductDetail />} />
+                   <Route path="/shop/cart" element={<Cart />} />
+                    <Route path="/blog" element={<Blog />} />
+                    <Route path="/blog/:slug" element={<BlogDetail />} />
+                    <Route path="/news" element={<News />} />
+                    <Route path="/news/:id" element={<NewsDetail />} />
+                    <Route path="/historia" element={<History />} />
                   <Route path="/como-participar" element={<HowToParticipate />} />
                   <Route path="/apoyanos" element={<Support />} />
                   <Route path="/about-us" element={<Team />} />

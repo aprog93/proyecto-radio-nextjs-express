@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { ShoppingBag, Search, Loader2, DollarSign } from "lucide-react";
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { api, Product as ProductType } from "@/lib/api";
 import { useApi } from "@/hooks/use-api";
 import { useToast } from "@/hooks/use-toast";
@@ -158,59 +159,66 @@ const Shop = () => {
                   const cartItem = cart.find((item) => item.product.id === product.id);
                   const inCart = cartItem ? cartItem.quantity : 0;
 
-                  return (
-                    <motion.div
-                      key={product.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors flex flex-col"
-                    >
-                      <div className="h-48 bg-secondary flex items-center justify-center overflow-hidden">
-                        {product.image ? (
-                          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <ShoppingBag className="w-12 h-12 text-primary/30" />
-                        )}
-                      </div>
-                      <div className="p-6 flex flex-col flex-1">
-                        <h3 className="font-display text-lg font-semibold text-foreground mb-2">{product.name}</h3>
-                        {product.description && <p className="text-sm text-muted-foreground mb-3 line-clamp-2 flex-1">{product.description}</p>}
+                   return (
+                     <Link key={product.id} to={`/shop/${product.id}`}>
+                       <motion.div
+                         initial={{ opacity: 0, y: 20 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         transition={{ delay: i * 0.05 }}
+                         className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors flex flex-col h-full"
+                       >
+                         <div className="h-48 bg-secondary flex items-center justify-center overflow-hidden">
+                           {product.image ? (
+                             <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                           ) : (
+                             <ShoppingBag className="w-12 h-12 text-primary/30" />
+                           )}
+                         </div>
+                         <div className="p-6 flex flex-col flex-1">
+                           <h3 className="font-display text-lg font-semibold text-foreground mb-2">{product.name}</h3>
+                           {product.description && <p className="text-sm text-muted-foreground mb-3 line-clamp-2 flex-1">{product.description}</p>}
 
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="w-4 h-4 text-primary" />
-                            <p className="text-xl font-bold text-primary">{product.price.toFixed(2)}</p>
-                          </div>
-                          <span className={`text-xs px-2 py-1 rounded ${product.stock > 0 ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}`}>
-                            {product.stock > 0 ? `${product.stock} en stock` : "Sin stock"}
-                          </span>
-                        </div>
+                           <div className="flex items-center justify-between mb-4">
+                             <div className="flex items-center gap-1">
+                               <DollarSign className="w-4 h-4 text-primary" />
+                               <p className="text-xl font-bold text-primary">{product.price.toFixed(2)}</p>
+                             </div>
+                             <span className={`text-xs px-2 py-1 rounded ${product.stock > 0 ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}`}>
+                               {product.stock > 0 ? `${product.stock} en stock` : "Sin stock"}
+                             </span>
+                           </div>
 
-                        {inCart > 0 ? (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleRemoveFromCart(product.id)}
-                              className="flex-1 px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-colors text-sm font-semibold"
-                            >
-                              Remover
-                            </button>
-                            <div className="flex items-center justify-center bg-primary/10 px-3 rounded-lg min-w-[60px]">
-                              <span className="text-primary font-bold">{inCart}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => handleAddToCart(product)}
-                            disabled={product.stock <= 0}
-                            className="w-full px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {t("shop.addToCart")}
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
-                  );
+                           {inCart > 0 ? (
+                             <div className="flex gap-2" onClick={(e) => e.preventDefault()}>
+                               <button
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   handleRemoveFromCart(product.id);
+                                 }}
+                                 className="flex-1 px-4 py-2 rounded-lg bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-colors text-sm font-semibold"
+                               >
+                                 Remover
+                               </button>
+                               <div className="flex items-center justify-center bg-primary/10 px-3 rounded-lg min-w-[60px]">
+                                 <span className="text-primary font-bold">{inCart}</span>
+                               </div>
+                             </div>
+                           ) : (
+                             <button
+                               onClick={(e) => {
+                                 e.preventDefault();
+                                 handleAddToCart(product);
+                               }}
+                               disabled={product.stock <= 0}
+                               className="w-full px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                             >
+                               {t("shop.addToCart")}
+                             </button>
+                           )}
+                         </div>
+                       </motion.div>
+                     </Link>
+                   );
                 })}
               </div>
 

@@ -3,8 +3,9 @@ import { motion } from "framer-motion";
 import { User, ShoppingBag, Calendar, Heart, Settings, LogOut, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
+import { api } from "@/lib/api";
+import { useApi } from "@/hooks/use-api";
 
 const portalSections = [
   { key: "orders", icon: ShoppingBag, to: "#" },
@@ -15,33 +16,34 @@ const portalSections = [
 
 const Portal = () => {
   const { t } = useTranslation();
-  const { user, loading, signOut } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
+
+  // Fetch user profile from backend
+  const { data: profileData, loading: profileLoading, error: profileError } = useApi(
+    () => api.users.getProfile(),
+    { autoFetch: isAuthenticated }
+  );
+
+  const profile = profileData?.profile;
+  const userData = profileData?.user;
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!isAuthenticated) {
       navigate("/web/login", { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [isAuthenticated, navigate]);
 
-  useEffect(() => {
-    if (user) {
-      supabase
-        .from("profiles")
-        .select("display_name, avatar_url")
-        .eq("user_id", user.id)
-        .single()
-        .then(({ data }) => setProfile(data));
-    }
-  }, [user]);
-
-  const handleLogout = async () => {
-    await signOut();
-    navigate("/");
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
   };
 
-  if (loading) {
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  if (profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -49,7 +51,7 @@ const Portal = () => {
     );
   }
 
-  if (!user) return null;
+  const displayName = profile?.firstName && profile?.lastName ? `${profile.firstName} ${profile.lastName}` : user?.displayName || user?.email;
 
   return (
     <div className="min-h-screen py-20 px-4">
@@ -69,16 +71,36 @@ const Portal = () => {
           </div>
 
           <div className="rounded-2xl border border-border p-8 bg-card mb-8 flex items-center gap-6">
-            <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
-              <User className="w-8 h-8 text-primary/40" />
+            <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {user?.avatar ? (
+                <img src={user.avatar} alt={user.displayName} className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-8 h-8 text-primary/40" />
+              )}
             </div>
-            <div>
-              <h2 className="font-display text-xl font-semibold text-foreground">
-                {profile?.display_name || user.email}
-              </h2>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+            <div className="flex-1">
+              <h2 className="font-display text-xl font-semibold text-foreground">{displayName}</h2>
+              <p className="text-sm text-muted-foreground">{user?.email}</p>
+              {profile && (
+                <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                  {profile.phone && <p>📱 {profile.phone}</p>}
+                  {profile.city && <p>📍 {profile.city}, {profile.country || ""}</p>}
+                </div>
+              )}
             </div>
+            <Link
+              to="/portal/settings"
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+            >
+              {t("portal.editProfile") || "Editar perfil"}
+            </Link>
           </div>
+
+          {profileError && (
+            <div className="p-4 mb-8 rounded-lg bg-destructive/10 border border-destructive/20">
+              <p className="text-destructive text-sm">{profileError.message}</p>
+            </div>
+          )}
 
           <div className="grid sm:grid-cols-2 gap-4">
             {portalSections.map((section, i) => (
@@ -100,3 +122,4 @@ const Portal = () => {
 };
 
 export default Portal;
+

@@ -49,46 +49,93 @@ Shared test data, API endpoints, and helper functions:
 - Data creation helpers (`createBlogPost`, `createNews`, `createEvent`, `createUser`)
 - Assertion helpers (`assertLoggedIn`, `assertAdminAccess`)
 - Navigation and cleanup utilities
+- **All page routes** (ROUTES constant)
 
-### `auth.spec.ts`
-Authentication flow tests (13 tests):
-- Valid/invalid login
-- Registration (new, duplicate, weak password)
-- Logout
-- Session management (reload, token persistence)
-- User info retrieval
+### `public.spec.ts` - **35 tests**
+All public pages without authentication:
+- Core: Home, Now Playing
+- Auth: Login, Register
+- Schedule: Schedule (EN/ES), Programs
+- Community: Participate, Community, Como Participar
+- Support: Donate, Support
+- Info: About, History, Team, Contact, Terms
+- Content: Blog, News, Events, Shop, Cart
+- Navigation: Navbar, Footer, Page transitions
+- Responsive: Mobile, Tablet
+- Accessibility: HTML structure, Lang attribute
 
-### `admin.spec.ts`
-Admin dashboard tests (10 tests):
-- Dashboard access and rendering
+### `user.spec.ts` - **14 tests**
+User authentication and profile features:
+- Portal page access
+- Profile settings
+- Reset password
+- Login/logout flow
+- Session persistence
+- Invalid credentials handling
+- Mobile user experience
+
+### `admin-full.spec.ts` - **24 tests**
+Admin dashboard and user management:
+- Dashboard access control (admin, listener, anonymous)
 - Statistics display
-- User listing with pagination
-- User CRUD operations (create, read, update, delete)
-- Role changes
-- User deactivation
-- Permission validation (non-admin access denied)
-- Search functionality
-
-### `content.spec.ts`
-Content pages tests (12 tests):
-- Blog page loading and display
-- News page loading and display
-- Events page loading and display
-- Individual post/event viewing
-- Content creation (blog, news, events)
+- User CRUD (Create, Read, Update, Delete)
+- Role management
+- User activation/deactivation
 - Permission validation
-- Skeleton loaders on mobile
-- Error handling for non-existent content
+- Pagination & Search
+- Error handling
 
-### `api-errors.spec.ts`
-Error handling tests (15 tests):
-- HTTP error codes (400, 401, 403, 404, 500)
-- Validation errors (email, password, role)
+### `admin.spec.ts` - **10 tests**
+Additional admin tests (legacy, see admin-full.spec.ts for full coverage)
+
+### `streaming.spec.ts` - **12 tests**
+AzuraCast streaming functionality:
+- Now Playing page
+- Stream Dashboard
+- Stream Now Playing module
+- Playlists
+- Player controls
+- Station information
+- Mobile streaming
+- Error handling
+
+### `content.spec.ts` - **12 tests**
+Content management:
+- Blog, News, Events pages
+- Content creation (admin)
+- Permission validation
+- Skeleton loaders
+- Error handling
+
+### `auth.spec.ts` - **13 tests**
+Authentication flows:
+- Login (valid/invalid)
+- Register (new user, duplicate, weak password)
+- Logout
+- Session management
+- Token persistence
+
+### `api-errors.spec.ts` - **15 tests`
+API error handling:
+- HTTP errors (400, 401, 403, 404, 500)
+- Validation errors
 - Duplicate entries
-- Expired tokens
+- Invalid tokens
 - Concurrent requests
-- Missing required fields
-- Response handling
+- Missing fields
+
+## Test Summary
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `public.spec.ts` | 35 | All public pages |
+| `user.spec.ts` | 14 | User features |
+| `admin-full.spec.ts` | 24 | Admin dashboard |
+| `streaming.spec.ts` | 12 | AzuraCast/Streaming |
+| `content.spec.ts` | 12 | Blog/News/Events |
+| `auth.spec.ts` | 13 | Authentication |
+| `api-errors.spec.ts` | 15 | Error handling |
+| **TOTAL** | **125** | **Comprehensive** |
 
 ## Key Concepts
 

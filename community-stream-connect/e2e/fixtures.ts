@@ -11,13 +11,13 @@ import { Page, expect } from '@playwright/test';
 
 /**
  * Test user accounts for E2E testing
- * Real credentials from production server
+ * NOTE: Tests can work without real credentials for public pages
  */
 export const TEST_USERS = {
   admin: {
-    email: 'alfredfonher@gmail.com',
-    password: 'Fcb1899Nov29@',
-    displayName: 'Admin User',
+    email: 'admin@test.com',
+    password: 'Admin@12345',
+    displayName: 'Admin Test User',
     role: 'admin',
   },
   listener: {
@@ -52,8 +52,59 @@ export const TEST_NEWS = {
 export const TEST_EVENT = {
   title: `E2E Test Event ${Date.now()}`,
   description: 'This is a test event created by E2E tests',
-  date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days from now
+  date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   time: '18:00',
+};
+
+export const TEST_PRODUCT = {
+  name: `E2E Test Product ${Date.now()}`,
+  description: 'This is a test product created by E2E tests',
+  price: 29.99,
+  stock: 10,
+  category: 'Merchandise',
+};
+
+// ============================================================================
+// ALL PAGE ROUTES
+// ============================================================================
+
+export const ROUTES = {
+  // Public pages
+  home: '/',
+  nowPlaying: '/now-playing',
+  login: '/web/login',
+  register: '/register',
+  schedule: '/schedule',
+  programacion: '/programacion',
+  participate: '/participate',
+  community: '/community',
+  donate: '/donate',
+  about: '/about',
+  terms: '/terms',
+  programas: '/programas',
+  historia: '/historia',
+  comoParticipar: '/como-participar',
+  apoyanos: '/apoyanos',
+  team: '/about-us',
+  contact: '/contactus',
+  blog: '/blog',
+  news: '/news',
+  events: '/event',
+  shop: '/shop',
+  cart: '/shop/cart',
+
+  // User pages (require auth)
+  portal: '/portal',
+  profileSettings: '/portal/settings',
+  resetPassword: '/reset-password',
+
+  // Admin pages (require admin role)
+  adminDashboard: '/admin',
+
+  // AzuraCast modules
+  streamDashboard: '/stream-dashboard',
+  streamNowPlaying: '/stream-now-playing',
+  playlists: '/playlists',
 };
 
 // ============================================================================

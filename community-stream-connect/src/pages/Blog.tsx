@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Search, Newspaper, Clock, Loader2 } from "lucide-react";
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useApi } from "@/hooks/use-api";
 
@@ -101,41 +102,42 @@ const Blog = () => {
             </div>
           ) : blogs.length === 0 ? (
             <p className="text-center text-muted-foreground py-12">{t("blog.noResults") || "No se encontraron blogs."}</p>
-          ) : (
-            <>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {blogs.map((article, i) => (
-                  <motion.div
-                    key={article.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors group cursor-pointer"
-                  >
-                    <div className="h-44 bg-secondary flex items-center justify-center overflow-hidden">
-                      {article.image ? (
-                        <img src={article.image} alt={article.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <Newspaper className="w-12 h-12 text-primary/30" />
-                      )}
-                    </div>
-                    <div className="p-6">
-                      <h3 className="font-display text-lg font-semibold text-foreground mt-1 mb-2 group-hover:text-primary transition-colors">
-                        {article.title}
-                      </h3>
-                      {article.excerpt && <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{article.excerpt}</p>}
-                      <div className="flex items-center justify-between">
-                        {article.publishedAt && (
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" /> {new Date(article.publishedAt).toLocaleDateString()}
-                          </span>
-                        )}
-                        {article.viewCount && <span className="text-xs text-muted-foreground">{article.viewCount} visitas</span>}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+           ) : (
+             <>
+               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {blogs.map((article, i) => (
+                   <Link key={article.id} to={`/blog/${article.slug}`}>
+                     <motion.div
+                       initial={{ opacity: 0, y: 20 }}
+                       animate={{ opacity: 1, y: 0 }}
+                       transition={{ delay: i * 0.05 }}
+                       className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors group cursor-pointer h-full"
+                     >
+                       <div className="h-44 bg-secondary flex items-center justify-center overflow-hidden">
+                         {article.image ? (
+                           <img src={article.image} alt={article.title} className="w-full h-full object-cover" />
+                         ) : (
+                           <Newspaper className="w-12 h-12 text-primary/30" />
+                         )}
+                       </div>
+                       <div className="p-6">
+                         <h3 className="font-display text-lg font-semibold text-foreground mt-1 mb-2 group-hover:text-primary transition-colors">
+                           {article.title}
+                         </h3>
+                         {article.excerpt && <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{article.excerpt}</p>}
+                         <div className="flex items-center justify-between">
+                           {article.publishedAt && (
+                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                               <Clock className="w-3 h-3" /> {new Date(article.publishedAt).toLocaleDateString()}
+                             </span>
+                           )}
+                           {article.viewCount && <span className="text-xs text-muted-foreground">{article.viewCount} visitas</span>}
+                         </div>
+                       </div>
+                     </motion.div>
+                   </Link>
+                 ))}
+               </div>
 
               {/* Pagination */}
               {totalPages > 1 && (

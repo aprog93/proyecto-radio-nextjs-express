@@ -20,6 +20,7 @@ import Events from "./pages/Events";
 import Shop from "./pages/Shop";
 import Cart from "./pages/Cart";
 import Blog from "./pages/Blog";
+import BlogDetail from "./pages/BlogDetail";
 import History from "./pages/History";
 import HowToParticipate from "./pages/HowToParticipate";
 import Support from "./pages/Support";
@@ -59,8 +60,9 @@ const App = () => (
                   <Route path="/event" element={<Events />} />
                   <Route path="/shop" element={<Shop />} />
                   <Route path="/shop/cart" element={<Cart />} />
-                  <Route path="/blog" element={<Blog />} />
-                  <Route path="/historia" element={<History />} />
+                   <Route path="/blog" element={<Blog />} />
+                   <Route path="/blog/:slug" element={<BlogDetail />} />
+                   <Route path="/historia" element={<History />} />
                   <Route path="/como-participar" element={<HowToParticipate />} />
                   <Route path="/apoyanos" element={<Support />} />
                   <Route path="/about-us" element={<Team />} />

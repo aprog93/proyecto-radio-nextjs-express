@@ -1,12 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { DatabaseWrapper } from '../config/db-wrapper.js';
 import { AuthService } from '../services/auth.js';
 import { authenticateToken, requireAuth, requireAdmin } from '../middleware/authMiddleware.js';
 import { RegisterRequest, AuthRequest, UpdateProfileRequest } from '../types/database.js';
 
-export function createAuthRouter(db: DatabaseWrapper): Router {
+export function createAuthRouter(): Router {
   const router = Router();
-  const authService = new AuthService(db);
+  const authService = new AuthService();
 
   // Middleware para inyectar authService
   router.use((req, res, next) => {

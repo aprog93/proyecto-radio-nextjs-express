@@ -5,7 +5,6 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import fileUpload from 'express-fileupload';
-import type { DatabaseWrapper } from './config/db-wrapper.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createUserRouter } from './routes/users.js';
 import { createBlogRouter } from './routes/blogs.js';
@@ -20,9 +19,9 @@ import healthRouter from './routes/health.js';
 const app: Express = express();
 
 /**
- * Inicializa la aplicación Express con rutas de base de datos
+ * Inicializa la aplicación Express (sin parámetro db, usa Prisma directamente)
  */
-export function createApp(db: DatabaseWrapper): Express {
+export function createApp(): Express {
   // Middleware
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -55,14 +54,14 @@ export function createApp(db: DatabaseWrapper): Express {
   app.use('/api/station', stationRouter);
 
   // API Routes
-   app.use('/api/auth', createAuthRouter(db));
-   app.use('/api/users', createUserRouter(db));
-   app.use('/api/blogs', createBlogRouter(db));
-   app.use('/api/news', createNewsRouter(db));
-   app.use('/api/events', createEventRouter(db));
-   app.use('/api/schedule', createScheduleRouter(db));
-   app.use('/api/products', createProductRouter(db));
-   app.use('/api/admin', createAdminRouter(db));
+   app.use('/api/auth', createAuthRouter());
+   app.use('/api/users', createUserRouter());
+   app.use('/api/blogs', createBlogRouter());
+   app.use('/api/news', createNewsRouter());
+   app.use('/api/events', createEventRouter());
+   app.use('/api/schedule', createScheduleRouter());
+   app.use('/api/products', createProductRouter());
+   app.use('/api/admin', createAdminRouter());
 
   // 404 handler
   app.use((req: Request, res: Response) => {

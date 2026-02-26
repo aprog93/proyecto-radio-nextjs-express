@@ -2,7 +2,7 @@
  * Server entry point
  */
 
-import { getDatabase, closeDatabase } from './config/database.js';
+import { connectDatabase, disconnectDatabase } from './config/prisma.js';
 import { createApp } from './app.js';
 
 const PORT = process.env.PORT || 3000;
@@ -10,11 +10,11 @@ const AZURACAST_URL = process.env.AZURACAST_BASE_URL || 'http://localhost:8000';
 
 async function startServer() {
   try {
-    // Inicializar base de datos
-    const db = await getDatabase();
+    // Conectar a la base de datos
+    await connectDatabase();
 
     // Crear aplicación Express
-    const app = createApp(db);
+    const app = createApp();
 
     // Iniciar servidor
     const server = app.listen(PORT, () => {
@@ -26,7 +26,7 @@ async function startServer() {
 📡 API Server:     http://localhost:${PORT}
 🌍 CORS Origin:    ${process.env.CORS_ORIGIN || 'http://localhost:5173'}
 📚 AzuraCast:      ${AZURACAST_URL}/api
-📊 Database:       SQLite (data/radio_cesar.db)
+📊 Database:       SQLite (file:./data/dev.db)
 🔧 Environment:    ${process.env.NODE_ENV || 'development'}
 
 ✅ Ready to accept connections
@@ -37,7 +37,7 @@ async function startServer() {
     const shutdown = async () => {
       console.log('\n🛑 Shutting down gracefully...');
       server.close(async () => {
-        await closeDatabase();
+        await disconnectDatabase();
         console.log('✓ Server closed');
         process.exit(0);
       });

@@ -2,49 +2,54 @@ import { User, AuthRequest, RegisterRequest } from '@/types/database.js';
 
 /**
  * Test fixtures for User entities
+ * Note: Prisma returns Date objects for createdAt/updatedAt, so we use Date here
  */
 
-export const mockAdminUser: User = {
+export const mockAdminUser = {
   id: 1,
   email: 'admin@radiocesar.local',
   displayName: 'Admin User',
   role: 'admin',
   avatar: 'https://example.com/avatar-admin.jpg',
   bio: 'System administrator',
-  createdAt: '2024-01-01T00:00:00Z',
-  updatedAt: '2024-01-01T00:00:00Z',
+  password: 'hashed_admin123',
+  createdAt: new Date('2024-01-01T00:00:00Z'),
+  updatedAt: new Date('2024-01-01T00:00:00Z'),
   isActive: true,
 };
 
-export const mockListenerUser: User = {
+export const mockListenerUser = {
   id: 2,
   email: 'listener@example.com',
   displayName: 'John Listener',
   role: 'listener',
   avatar: 'https://example.com/avatar-john.jpg',
   bio: 'Regular listener',
-  createdAt: '2024-01-15T10:00:00Z',
-  updatedAt: '2024-01-15T10:00:00Z',
+  password: 'hashed_password123',
+  createdAt: new Date('2024-01-15T10:00:00Z'),
+  updatedAt: new Date('2024-01-15T10:00:00Z'),
   isActive: true,
 };
 
-export const mockInactiveUser: User = {
+export const mockInactiveUser = {
   id: 3,
   email: 'inactive@example.com',
   displayName: 'Inactive User',
   role: 'listener',
-  createdAt: '2024-01-10T05:00:00Z',
-  updatedAt: '2024-01-10T05:00:00Z',
+  password: 'hashed_password456',
+  createdAt: new Date('2024-01-10T05:00:00Z'),
+  updatedAt: new Date('2024-01-10T05:00:00Z'),
   isActive: false,
 };
 
-export const mockNewUser: User = {
+export const mockNewUser = {
   id: 4,
   email: 'newuser@example.com',
   displayName: 'New User',
   role: 'listener',
-  createdAt: '2024-02-20T12:00:00Z',
-  updatedAt: '2024-02-20T12:00:00Z',
+  password: 'hashed_newpassword',
+  createdAt: new Date('2024-02-20T12:00:00Z'),
+  updatedAt: new Date('2024-02-20T12:00:00Z'),
   isActive: true,
 };
 

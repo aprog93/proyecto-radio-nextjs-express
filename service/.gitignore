@@ -5,3 +5,5 @@ dist/
 *.log
 data/
 uploads/
+
+/src/generated/prisma

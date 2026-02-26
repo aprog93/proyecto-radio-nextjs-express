@@ -1,0 +1,250 @@
+// Proyecto Radio Cesar - Prisma Schema
+// ORM para soporte multi-BD (SQLite, MySQL, PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ============================================================
+// Usuarios y Autenticación
+// ============================================================
+
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String  @unique
+  password  String
+  displayName String
+  role      String  @default("listener") // listener, moderator, admin
+  avatar    String?
+  bio       String?
+  isActive  Boolean @default(true)
+
+  // Relaciones
+  profile         UserProfile?
+  blogsAuthor     Blog[]        @relation("BlogAuthor")
+  newsAuthor      News[]        @relation("NewsAuthor")
+  eventsAuthor    Event[]       @relation("EventAuthor")
+  comments        Comment[]
+  eventRegistrations EventRegistration[]
+  orders          Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+}
+
+model UserProfile {
+  id        Int     @id @default(autoincrement())
+  userId    Int     @unique
+  firstName String?
+  lastName  String?
+  phone     String?
+  address   String?
+  city      String?
+  country   String?
+  postalCode String?
+  socialMedia String? // JSON string with social links
+  preferences String? // JSON string with user preferences
+
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// Contenido: Blogs, Noticias, Eventos
+// ============================================================
+
+model Blog {
+  id        Int     @id @default(autoincrement())
+  title     String
+  slug      String  @unique
+  content   String
+  excerpt   String?
+  author_id Int
+  category  String?
+  tags      String? // JSON array
+  image     String?
+  published Boolean @default(false)
+  viewCount Int     @default(0)
+  publishedAt DateTime?
+
+  author    User    @relation("BlogAuthor", fields: [author_id], references: [id], onDelete: Cascade)
+  comments  Comment[] @relation("BlogComments")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([author_id])
+  @@index([published])
+  @@index([slug])
+}
+
+model News {
+  id        Int     @id @default(autoincrement())
+  title     String
+  content   String
+  author_id Int
+  image     String?
+  published Boolean @default(false)
+  expiresAt DateTime?
+  viewCount Int     @default(0)
+  publishedAt DateTime?
+
+  author    User    @relation("NewsAuthor", fields: [author_id], references: [id], onDelete: Cascade)
+  comments  Comment[] @relation("NewsComments")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([author_id])
+  @@index([published])
+}
+
+model Event {
+  id        Int     @id @default(autoincrement())
+  title     String
+  description String?
+  startDate DateTime
+  endDate   DateTime
+  location  String?
+  image     String?
+  capacity  Int?
+  registered Int @default(0)
+  author_id Int
+  published Boolean @default(false)
+  publishedAt DateTime?
+
+  author    User    @relation("EventAuthor", fields: [author_id], references: [id], onDelete: Cascade)
+  registrations EventRegistration[]
+  comments  Comment[] @relation("EventComments")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([author_id])
+  @@index([published])
+}
+
+model EventRegistration {
+  id        Int     @id @default(autoincrement())
+  event_id  Int
+  user_id   Int
+
+  event     Event   @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  registeredAt DateTime @default(now())
+
+  @@unique([event_id, user_id])
+  @@index([user_id])
+}
+
+// ============================================================
+// Programación de Emisoras
+// ============================================================
+
+model Schedule {
+  id        Int     @id @default(autoincrement())
+  title     String
+  description String?
+  dayOfWeek Int     // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+  startTime String  // HH:MM format
+  endTime   String  // HH:MM format
+  host      String?
+  image     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// E-commerce: Productos y Pedidos
+// ============================================================
+
+model Product {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  price       Float
+  image       String?
+  category    String?
+  stock       Int     @default(0)
+  published   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([published])
+}
+
+model Order {
+  id              Int     @id @default(autoincrement())
+  user_id         Int
+  total           Float
+  status          String  @default("pending") // pending, processing, shipped, delivered, cancelled
+  items           String  // JSON array of order items
+  shippingAddress String?
+
+  user      User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([user_id])
+  @@index([status])
+}
+
+// ============================================================
+// Donaciones
+// ============================================================
+
+model Donation {
+  id            Int     @id @default(autoincrement())
+  amount        Float
+  currency      String  @default("CAD")
+  message       String?
+  anonymous     Boolean @default(false)
+  email         String?
+  transactionId String?
+  status        String  @default("completed") // completed, pending, failed
+
+  createdAt DateTime @default(now())
+
+  @@index([status])
+}
+
+// ============================================================
+// Comentarios
+// ============================================================
+
+model Comment {
+  id        Int     @id @default(autoincrement())
+  content   String
+  user_id   Int
+  blog_id   Int?
+  news_id   Int?
+  event_id  Int?
+  approved  Boolean @default(false)
+
+  user      User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  blog      Blog?   @relation("BlogComments", fields: [blog_id], references: [id], onDelete: Cascade)
+  news      News?   @relation("NewsComments", fields: [news_id], references: [id], onDelete: Cascade)
+  event     Event?  @relation("EventComments", fields: [event_id], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([user_id])
+  @@index([blog_id])
+  @@index([news_id])
+  @@index([event_id])
+}

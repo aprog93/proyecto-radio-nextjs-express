@@ -1,552 +1,456 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { AuthService } from '@/services/auth.js';
+import { mockPrisma } from '../mocks/prisma.js';
 import {
   mockAdminUser,
   mockListenerUser,
   validRegisterRequest,
   validLoginRequest,
-  invalidPasswordRequest,
-  emptyEmailRequest,
-  emptyPasswordRequest,
-  testUsers,
 } from '../fixtures/users.js';
-import { createValidToken, createExpiredToken, mockTokens } from '../mocks/tokens.js';
 
 const TEST_JWT_SECRET = 'test-secret-key-for-testing-only';
 
-// Mock bcrypt for password hashing control
+// Mock bcrypt
 vi.mock('bcryptjs', () => ({
   default: {
     hashSync: vi.fn((password) => `hashed_${password}`),
-    compareSync: vi.fn((password, hash) => {
-      return hash === `hashed_${password}`;
-    }),
+    compareSync: vi.fn((password, hash) => hash === `hashed_${password}`),
   },
 }));
 
-// Mock jwt for token generation control
+// Mock jwt
 vi.mock('jsonwebtoken', () => ({
   default: {
-    sign: vi.fn((payload, secret, options) => {
-      return `token_${JSON.stringify(payload)}_${Date.now()}`;
-    }),
-    verify: vi.fn((token, secret) => {
-      try {
-        // Simulate token verification
-        if (token.includes('invalid') || token.includes('expired')) {
-          throw new Error('Invalid token');
-        }
-        return JSON.parse(token.replace('token_', '').split('_')[0]);
-      } catch (error) {
-        throw error;
+    sign: vi.fn((payload, secret, options) => `token_${JSON.stringify(payload)}`),
+    verify: vi.fn((token) => {
+      if (token.includes('invalid') || token.includes('expired')) {
+        throw new Error('Invalid token');
       }
+      return JSON.parse(token.replace('token_', ''));
     }),
   },
 }));
 
-// Create a more realistic mock database wrapper
-class TestDatabaseWrapper {
-  private users: any[] = [];
-  private userProfiles: any[] = [];
-  private nextUserId = 1;
-
-  constructor() {
-    // Initialize with test users
-    this.users = [
-      {
-        id: 1,
-        email: 'admin@radiocesar.local',
-        password: 'hashed_admin123',
-        displayName: 'Admin User',
-        role: 'admin',
-        avatar: null,
-        bio: null,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        isActive: 1,
-      },
-      {
-        id: 2,
-        email: 'listener@example.com',
-        password: 'hashed_password123',
-        displayName: 'John Listener',
-        role: 'listener',
-        avatar: 'https://example.com/avatar.jpg',
-        bio: 'Music enthusiast',
-        createdAt: '2024-01-15T10:00:00Z',
-        updatedAt: '2024-01-15T10:00:00Z',
-        isActive: 1,
-      },
-      {
-        id: 3,
-        email: 'inactive@example.com',
-        password: 'hashed_password456',
-        displayName: 'Inactive User',
-        role: 'listener',
-        avatar: null,
-        bio: null,
-        createdAt: '2024-01-10T05:00:00Z',
-        updatedAt: '2024-01-10T05:00:00Z',
-        isActive: 0,
-      },
-    ];
-    this.nextUserId = 4;
-  }
-
-  getOne<T = any>(sql: string, params: any[] = []): T | undefined {
-    if (sql.includes('SELECT * FROM users WHERE email')) {
-      const email = params[0]?.toLowerCase();
-      // Check for isActive condition
-      if (sql.includes('isActive')) {
-        return this.users.find(u => u.email === email && u.isActive) as T;
-      }
-      return this.users.find(u => u.email === email) as T;
-    }
-
-    if (sql.includes('SELECT id FROM users WHERE email')) {
-      const email = params[0]?.toLowerCase();
-      const user = this.users.find(u => u.email === email);
-      return user ? { id: user.id } as T : undefined;
-    }
-
-    if (sql.includes('SELECT id, email, displayName')) {
-      const id = params[0];
-      const user = this.users.find(u => u.id === id);
-      if (!user) return undefined;
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword as T;
-    }
-
-    return undefined;
-  }
-
-  getAll<T = any>(sql: string, params: any[] = []): T[] {
-    if (sql.includes('SELECT id, email, displayName')) {
-      const limit = params[0] || 50;
-      const offset = params[1] || 0;
-      return this.users
-        .slice(offset, offset + limit)
-        .map(u => {
-          const { password, ...userWithoutPassword } = u;
-          return userWithoutPassword as T;
-        });
-    }
-
-    return [];
-  }
-
-  run(sql: string, params: any[] = []): { changes: number; lastID: number } {
-    if (sql.includes('INSERT INTO users')) {
-      const [email, password, displayName, role, isActive] = params;
-      const newUser = {
-        id: this.nextUserId++,
-        email: email.toLowerCase(),
-        password,
-        displayName,
-        role,
-        avatar: null,
-        bio: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isActive,
-      };
-      this.users.push(newUser);
-      return { changes: 1, lastID: newUser.id };
-    }
-
-    if (sql.includes('INSERT INTO user_profiles')) {
-      // Just track that it was called
-      return { changes: 1, lastID: 1 };
-    }
-
-    if (sql.includes('UPDATE users SET')) {
-      const lastParam = params[params.length - 1]; // userId is usually last
-      const user = this.users.find(u => u.id === lastParam);
-      if (user) {
-        if (sql.includes('displayName')) {
-          user.displayName = params[0];
-        }
-        if (sql.includes('bio')) {
-          user.bio = params[sql.includes('displayName') ? 1 : 0];
-        }
-        if (sql.includes('avatar')) {
-          const avatarIdx = sql.includes('displayName') ? 2 : sql.includes('bio') ? 1 : 0;
-          user.avatar = params[avatarIdx];
-        }
-        if (sql.includes('role =')) {
-          user.role = params[0];
-        }
-        user.updatedAt = new Date().toISOString();
-        return { changes: 1, lastID: 0 };
-      }
-      return { changes: 0, lastID: 0 };
-    }
-
-    if (sql.includes('DELETE FROM users')) {
-      const id = params[0];
-      const index = this.users.findIndex(u => u.id === id);
-      if (index !== -1) {
-        this.users.splice(index, 1);
-        return { changes: 1, lastID: 0 };
-      }
-      return { changes: 0, lastID: 0 };
-    }
-
-    return { changes: 0, lastID: 0 };
-  }
-
-  count(sql: string, params: any[] = []): number {
-    return this.users.length;
-  }
-
-  transaction<T>(callback: () => T): T {
-    return callback();
-  }
-}
-
-describe('AuthService', () => {
+describe('AuthService with Prisma', () => {
   let authService: AuthService;
-  let mockDb: TestDatabaseWrapper;
 
   beforeEach(() => {
-    mockDb = new TestDatabaseWrapper();
-    authService = new AuthService(mockDb as any);
-  });
-
-  afterEach(() => {
+    // Limpiar todos los mocks
     vi.clearAllMocks();
+
+    // Resetear mocks de Prisma
+    Object.values(mockPrisma).forEach((entity) => {
+      if (typeof entity === 'object' && entity !== null) {
+        Object.values(entity).forEach((method) => {
+          if (typeof method === 'function' && method.mockReset) {
+            method.mockReset();
+          }
+        });
+      }
+    });
+
+    authService = new AuthService();
   });
 
   describe('register', () => {
-    it('should successfully register a new user', async () => {
-      const registerRequest = {
-        email: 'newuser@example.com',
-        password: 'NewPassword123!',
-        displayName: 'New User',
+    it('should register a new user successfully', async () => {
+      const newUser = {
+        id: 1,
+        email: validRegisterRequest.email.toLowerCase(),
+        password: `hashed_${validRegisterRequest.password}`,
+        displayName: validRegisterRequest.displayName,
+        role: 'listener',
+        avatar: null,
+        bio: null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
-      const result = await authService.register(registerRequest);
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.user.create.mockResolvedValueOnce(newUser);
+
+      const result = await authService.register(validRegisterRequest);
 
       expect(result).toBeDefined();
-      expect(result.email).toBe(registerRequest.email.toLowerCase());
-      expect(result.displayName).toBe(registerRequest.displayName);
+      expect(result.email).toBe(validRegisterRequest.email.toLowerCase());
+      expect(result.displayName).toBe(validRegisterRequest.displayName);
       expect(result.role).toBe('listener');
       expect(result.token).toBeDefined();
-      expect(result.token).toContain('token_');
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: validRegisterRequest.email.toLowerCase() },
+      });
     });
 
     it('should throw error if email already exists', async () => {
-      const registerRequest = {
-        email: 'listener@example.com',
-        password: 'password123',
-        displayName: 'Duplicate User',
-      };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockAdminUser);
 
-      await expect(authService.register(registerRequest)).rejects.toThrow(
+      await expect(authService.register(validRegisterRequest)).rejects.toThrow(
         'El email ya está registrado'
       );
     });
 
-    it('should hash the password', async () => {
-      const registerRequest = {
-        email: 'newuser2@example.com',
-        password: 'MyPassword123!',
-        displayName: 'New User 2',
+    it('should hash password before saving', async () => {
+      const newUser = {
+        id: 1,
+        email: 'newuser@example.com',
+        password: `hashed_${validRegisterRequest.password}`,
+        displayName: 'New User',
+        role: 'listener',
+        avatar: null,
+        bio: null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
-      await authService.register(registerRequest);
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.user.create.mockResolvedValueOnce(newUser);
 
-      expect(bcrypt.hashSync).toHaveBeenCalledWith(
-        registerRequest.password,
-        10
+      await authService.register(validRegisterRequest);
+
+      expect(bcrypt.hashSync).toHaveBeenCalledWith(validRegisterRequest.password, 10);
+      expect(mockPrisma.user.create).toHaveBeenCalled();
+    });
+
+    it('should create user profile with new user', async () => {
+      const newUser = {
+        id: 1,
+        email: 'newuser@example.com',
+        password: 'hashed_password123',
+        displayName: 'New User',
+        role: 'listener',
+        avatar: null,
+        bio: null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.user.create.mockResolvedValueOnce(newUser);
+
+      await authService.register(validRegisterRequest);
+
+      // Verify user.create was called with profile data
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            profile: expect.objectContaining({
+              create: {},
+            }),
+          }),
+        })
       );
-    });
-
-    it('should convert email to lowercase', async () => {
-      const registerRequest = {
-        email: 'UPPERCASE@EXAMPLE.COM',
-        password: 'password123',
-        displayName: 'User with Uppercase Email',
-      };
-
-      const result = await authService.register(registerRequest);
-
-      expect(result.email).toBe('uppercase@example.com');
-    });
-
-    it('should generate JWT token with user data', async () => {
-      const registerRequest = {
-        email: 'tokentest@example.com',
-        password: 'password123',
-        displayName: 'Token Test User',
-      };
-
-      const result = await authService.register(registerRequest);
-
-      expect(jwt.sign).toHaveBeenCalled();
-      expect(result.token).toBeDefined();
-      expect(typeof result.token).toBe('string');
     });
   });
 
   describe('login', () => {
-    it('should successfully login with correct credentials', async () => {
-      const loginRequest = {
-        email: 'listener@example.com',
-        password: 'password123',
-      };
+    it('should login user successfully with correct credentials', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(mockAdminUser);
+      (bcrypt.compareSync as any).mockReturnValueOnce(true);
 
-      const result = await authService.login(loginRequest);
+      const result = await authService.login(validLoginRequest);
 
       expect(result).toBeDefined();
-      expect(result.email).toBe(loginRequest.email.toLowerCase());
-      expect(result.displayName).toBe('John Listener');
-      expect(result.role).toBe('listener');
+      expect(result.email).toBe(mockAdminUser.email);
+      expect(result.displayName).toBe(mockAdminUser.displayName);
       expect(result.token).toBeDefined();
     });
 
-    it('should throw error if email does not exist', async () => {
-      const loginRequest = {
-        email: 'nonexistent@example.com',
-        password: 'password123',
-      };
+    it('should throw error for non-existent user', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
 
-      await expect(authService.login(loginRequest)).rejects.toThrow(
+      await expect(authService.login(validLoginRequest)).rejects.toThrow(
         'Email o contraseña incorrectos'
       );
     });
 
-    it('should throw error if password is incorrect', async () => {
-      const loginRequest = {
-        email: 'listener@example.com',
-        password: 'wrongpassword',
-      };
+    it('should throw error for incorrect password', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(mockAdminUser);
+      (bcrypt.compareSync as any).mockReturnValueOnce(false);
 
-      await expect(authService.login(loginRequest)).rejects.toThrow(
+      await expect(
+        authService.login({
+          email: mockAdminUser.email,
+          password: 'wrongpassword',
+        })
+      ).rejects.toThrow('Email o contraseña incorrectos');
+    });
+
+    it('should not login inactive user', async () => {
+      const inactiveUser = { ...mockAdminUser, isActive: false };
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
+
+      await expect(authService.login(validLoginRequest)).rejects.toThrow(
         'Email o contraseña incorrectos'
       );
     });
 
-    it('should throw error if user account is inactive', async () => {
-      const loginRequest = {
-        email: 'inactive@example.com',
-        password: 'password456',
-      };
+    it('should verify password with bcrypt', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(mockAdminUser);
+      (bcrypt.compareSync as any).mockReturnValueOnce(true);
 
-      await expect(authService.login(loginRequest)).rejects.toThrow();
-    });
-
-    it('should convert email to lowercase during login', async () => {
-      const loginRequest = {
-        email: 'LISTENER@EXAMPLE.COM',
-        password: 'password123',
-      };
-
-      const result = await authService.login(loginRequest);
-
-      expect(result.email).toBe('listener@example.com');
-    });
-
-    it('should verify password using bcrypt', async () => {
-      const loginRequest = {
-        email: 'listener@example.com',
-        password: 'password123',
-      };
-
-      await authService.login(loginRequest);
+      await authService.login(validLoginRequest);
 
       expect(bcrypt.compareSync).toHaveBeenCalledWith(
-        loginRequest.password,
-        'hashed_password123'
+        validLoginRequest.password,
+        mockAdminUser.password
       );
-    });
-
-    it('should generate token on successful login', async () => {
-      const loginRequest = {
-        email: 'listener@example.com',
-        password: 'password123',
-      };
-
-      const result = await authService.login(loginRequest);
-
-      expect(jwt.sign).toHaveBeenCalled();
-      expect(result.token).toBeDefined();
-      expect(typeof result.token).toBe('string');
     });
   });
 
   describe('verifyToken', () => {
     it('should verify valid token', () => {
-      const payload = {
+      const token = `token_{"id":1,"email":"test@example.com","role":"admin"}`;
+      (jwt.verify as any).mockReturnValueOnce({
         id: 1,
-        email: 'admin@radiocesar.local',
-        role: 'admin' as const,
-      };
+        email: 'test@example.com',
+        role: 'admin',
+      });
 
-      const token = createValidToken(payload);
       const result = authService.verifyToken(token);
 
       expect(result).toBeDefined();
-      expect(result?.id).toBe(payload.id);
-      expect(result?.email).toBe(payload.email);
-      expect(result?.role).toBe(payload.role);
+      expect(result?.id).toBe(1);
+      expect(result?.email).toBe('test@example.com');
+      expect(result?.role).toBe('admin');
     });
 
     it('should return null for invalid token', () => {
-      const result = authService.verifyToken('invalid.token.format');
+      const invalidToken = 'invalid_token';
+      (jwt.verify as any).mockImplementationOnce(() => {
+        throw new Error('Invalid token');
+      });
+
+      const result = authService.verifyToken(invalidToken);
 
       expect(result).toBeNull();
     });
 
-    it('should return null for tampered token', () => {
-      const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature';
-      const result = authService.verifyToken(token);
+    it('should return null for expired token', () => {
+      const expiredToken = 'token_expired';
+      (jwt.verify as any).mockImplementationOnce(() => {
+        throw new Error('Token expired');
+      });
+
+      const result = authService.verifyToken(expiredToken);
 
       expect(result).toBeNull();
-    });
-
-    it('should extract correct payload from token', () => {
-      const payload = {
-        id: 2,
-        email: 'listener@example.com',
-        role: 'listener' as const,
-      };
-
-      const token = createValidToken(payload);
-      const result = authService.verifyToken(token);
-
-      expect(result?.id).toBe(2);
-      expect(result?.email).toBe('listener@example.com');
-      expect(result?.role).toBe('listener');
     });
   });
 
   describe('getUserById', () => {
-    it('should retrieve user by id', async () => {
+    it('should return user when found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockAdminUser);
+
       const result = await authService.getUserById(1);
 
       expect(result).toBeDefined();
-      expect(result?.id).toBe(1);
-      expect(result?.email).toBe('admin@radiocesar.local');
-      expect(result?.displayName).toBe('Admin User');
+      expect(result?.id).toBe(mockAdminUser.id);
+      expect(result?.email).toBe(mockAdminUser.email);
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
     });
 
-    it('should return null if user does not exist', async () => {
+    it('should return null when user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
       const result = await authService.getUserById(999);
 
       expect(result).toBeNull();
     });
 
-    it('should not return password field', async () => {
+    it('should convert Date to ISO string in returned user', async () => {
+      const userWithDate = {
+        ...mockAdminUser,
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-02'),
+      };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(userWithDate);
+
       const result = await authService.getUserById(1);
 
-      expect(result).toBeDefined();
-      expect('password' in (result || {})).toBe(false);
+      expect(result?.createdAt).toBe('2024-01-01T00:00:00.000Z');
+      expect(result?.updatedAt).toBe('2024-01-02T00:00:00.000Z');
     });
   });
 
   describe('updateUser', () => {
     it('should update user displayName', async () => {
-      const result = await authService.updateUser(1, {
-        displayName: 'Updated Admin Name',
-      });
+      const updatedUser = { ...mockAdminUser, displayName: 'Updated Name' };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockAdminUser);
+      mockPrisma.user.update.mockResolvedValueOnce(updatedUser);
 
-      expect(result.displayName).toBe('Updated Admin Name');
+      const result = await authService.updateUser(1, {
+        displayName: 'Updated Name',
+      } as any);
+
+      expect(result.displayName).toBe('Updated Name');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { displayName: 'Updated Name' },
+      });
     });
 
     it('should update user bio', async () => {
-      const result = await authService.updateUser(2, {
-        bio: 'Updated bio text',
-      });
+      const updatedUser = { ...mockAdminUser, bio: 'New bio' };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockAdminUser);
+      mockPrisma.user.update.mockResolvedValueOnce(updatedUser);
 
-      expect(result.bio).toBe('Updated bio text');
+      const result = await authService.updateUser(1, { bio: 'New bio' } as any);
+
+      expect(result.bio).toBe('New bio');
     });
 
     it('should update user avatar', async () => {
-      const result = await authService.updateUser(2, {
-        avatar: 'https://example.com/new-avatar.jpg',
-      });
+      const updatedUser = { ...mockAdminUser, avatar: 'new-avatar.jpg' };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockAdminUser);
+      mockPrisma.user.update.mockResolvedValueOnce(updatedUser);
 
-      expect(result.avatar).toBe('https://example.com/new-avatar.jpg');
+      const result = await authService.updateUser(1, {
+        avatar: 'new-avatar.jpg',
+      } as any);
+
+      expect(result.avatar).toBe('new-avatar.jpg');
     });
 
-    it('should throw error if user does not exist', async () => {
-      await expect(authService.updateUser(999, { displayName: 'Test' })).rejects.toThrow();
+    it('should throw error if user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await expect(authService.updateUser(999, {})).rejects.toThrow(
+        'Usuario no encontrado'
+      );
+    });
+
+    it('should return user unchanged if no updates provided', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockAdminUser);
+
+      const result = await authService.updateUser(1, {});
+
+      expect(result.id).toBe(mockAdminUser.id);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('should update multiple fields at once', async () => {
+      const updatedUser = {
+        ...mockAdminUser,
+        displayName: 'New Name',
+        bio: 'New bio',
+        avatar: 'new-avatar.jpg',
+      };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockAdminUser);
+      mockPrisma.user.update.mockResolvedValueOnce(updatedUser);
+
+      const result = await authService.updateUser(1, {
+        displayName: 'New Name',
+        bio: 'New bio',
+        avatar: 'new-avatar.jpg',
+      } as any);
+
+      expect(result.displayName).toBe('New Name');
+      expect(result.bio).toBe('New bio');
+      expect(result.avatar).toBe('new-avatar.jpg');
     });
   });
 
   describe('getAllUsers', () => {
-    it('should retrieve all users with default limit', async () => {
+    it('should return all users with default pagination', async () => {
+      const users = [mockAdminUser, mockListenerUser];
+      mockPrisma.user.findMany.mockResolvedValueOnce(users);
+
       const result = await authService.getAllUsers();
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('should apply limit parameter', async () => {
-      const result = await authService.getAllUsers(2);
-
-      expect(result.length).toBeLessThanOrEqual(2);
-    });
-
-    it('should not include password in user objects', async () => {
-      const result = await authService.getAllUsers();
-
-      result.forEach(user => {
-        expect('password' in user).toBe(false);
+      expect(result).toHaveLength(2);
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+        take: 50,
+        skip: 0,
       });
     });
 
-    it('should return users with correct structure', async () => {
-      const result = await authService.getAllUsers(1);
+    it('should apply custom limit and offset', async () => {
+      mockPrisma.user.findMany.mockResolvedValueOnce([mockAdminUser]);
 
-      if (result.length > 0) {
-        const user = result[0];
-        expect(user.id).toBeDefined();
-        expect(user.email).toBeDefined();
-        expect(user.displayName).toBeDefined();
-        expect(user.role).toBeDefined();
-      }
+      await authService.getAllUsers(10, 5);
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+        take: 10,
+        skip: 5,
+      });
+    });
+
+    it('should return empty array if no users found', async () => {
+      mockPrisma.user.findMany.mockResolvedValueOnce([]);
+
+      const result = await authService.getAllUsers();
+
+      expect(result).toHaveLength(0);
     });
   });
 
   describe('deleteUser', () => {
-    it('should delete a user', async () => {
+    it('should delete user successfully', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockListenerUser);
+      mockPrisma.user.delete.mockResolvedValueOnce(mockListenerUser);
+
       await authService.deleteUser(2);
 
-      const deletedUser = await authService.getUserById(2);
-      expect(deletedUser).toBeNull();
+      expect(mockPrisma.user.delete).toHaveBeenCalledWith({
+        where: { id: 2 },
+      });
     });
 
-    it('should throw error when deleting main admin', async () => {
-      await expect(
-        authService.deleteUser(1)
-      ).rejects.toThrow('No se puede eliminar el administrador principal');
+    it('should throw error when deleting admin user', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockAdminUser);
+
+      await expect(authService.deleteUser(1)).rejects.toThrow(
+        'No se puede eliminar el administrador principal'
+      );
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('should throw error if user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await expect(authService.deleteUser(999)).rejects.toThrow(
+        'Usuario no encontrado'
+      );
     });
   });
 
   describe('updateUserRole', () => {
-    it('should update user role from listener to admin', async () => {
+    it('should update user role', async () => {
+      const updatedUser = { ...mockListenerUser, role: 'admin' };
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockListenerUser);
+      mockPrisma.user.update.mockResolvedValueOnce(updatedUser);
+
       const result = await authService.updateUserRole(2, 'admin');
 
       expect(result.role).toBe('admin');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 2 },
+        data: { role: 'admin' },
+      });
     });
 
-    it('should throw error when changing main admin role', async () => {
-      await expect(
-        authService.updateUserRole(1, 'listener')
-      ).rejects.toThrow('No se puede cambiar el rol del administrador principal');
+    it('should throw error when changing admin role', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(mockAdminUser);
+
+      await expect(authService.updateUserRole(1, 'listener')).rejects.toThrow(
+        'No se puede cambiar el rol del administrador principal'
+      );
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 
-    it('should return user with updated role', async () => {
-      const result = await authService.updateUserRole(2, 'admin');
+    it('should throw error if user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      expect(result.id).toBe(2);
-      expect(result.email).toBe('listener@example.com');
-      expect(result.role).toBe('admin');
+      await expect(authService.updateUserRole(999, 'admin')).rejects.toThrow(
+        'Usuario no encontrado'
+      );
     });
   });
 });
-

@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { DatabaseWrapper } from '../config/db-wrapper.js';
+
 import { authenticateToken, requireAdmin } from '../middleware/authMiddleware.js';
 import { CreateBlogRequest, Blog } from '../types/database.js';
 
-export function createBlogRouter(db: DatabaseWrapper): Router {
+export function createBlogRouter(): Router {
   const router = Router();
 
   /**

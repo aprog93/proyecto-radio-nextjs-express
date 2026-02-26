@@ -1,25 +1,22 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { DatabaseWrapper } from '../config/db-wrapper.js';
+import { prisma } from '../config/prisma.js';
 import { User, AuthRequest, RegisterRequest, AuthResponse, UserRole } from '../types/database.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'radio-cesar-secret-key-change-in-production';
 
 /**
- * Servicio de autenticación
+ * Servicio de autenticación con Prisma ORM
  */
 export class AuthService {
-  constructor(private db: DatabaseWrapper) {}
-
   /**
    * Registra un nuevo usuario
    */
   async register(req: RegisterRequest): Promise<AuthResponse> {
     // Validar que el email no exista
-    const existingUser = this.db.getOne<{ id: number }>(
-      'SELECT id FROM users WHERE email = ?',
-      [req.email.toLowerCase()]
-    );
+    const existingUser = await prisma.user.findUnique({
+      where: { email: req.email.toLowerCase() },
+    });
 
     if (existingUser) {
       throw new Error('El email ya está registrado');
@@ -28,37 +25,39 @@ export class AuthService {
     // Hash de la contraseña
     const hashedPassword = bcrypt.hashSync(req.password, 10);
 
-    // Crear usuario
-    const result = this.db.run(
-      `INSERT INTO users (email, password, displayName, role, isActive)
-       VALUES (?, ?, ?, ?, ?)`,
-      [req.email.toLowerCase(), hashedPassword, req.displayName, 'listener', 1]
-    );
-
-    const userId = result.lastID;
-
-    // Crear perfil de usuario
-    this.db.run(`INSERT INTO user_profiles (userId) VALUES (?)`, [userId]);
-
-    // Obtener usuario creado
-    const user = this.db.getOne<User>(
-      'SELECT id, email, displayName, role, avatar, bio, createdAt, updatedAt, isActive FROM users WHERE id = ?',
-      [userId]
-    );
-
-    if (!user) {
-      throw new Error('Error al crear el usuario');
-    }
+    // Crear usuario con perfil
+    const user = await prisma.user.create({
+      data: {
+        email: req.email.toLowerCase(),
+        password: hashedPassword,
+        displayName: req.displayName,
+        role: 'listener',
+        isActive: true,
+        profile: {
+          create: {},
+        },
+      },
+    });
 
     // Generar token
-    const token = this.generateToken(user);
+    const token = this.generateToken({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role as UserRole,
+      avatar: user.avatar,
+      bio: user.bio,
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    });
 
     return {
       id: user.id,
       email: user.email,
       displayName: user.displayName,
       role: user.role as UserRole,
-      avatar: user.avatar,
+      avatar: user.avatar || undefined,
       token,
     };
   }
@@ -68,31 +67,43 @@ export class AuthService {
    */
   async login(req: AuthRequest): Promise<AuthResponse> {
     // Buscar usuario por email
-    const user = this.db.getOne<User>(
-      'SELECT * FROM users WHERE email = ? AND isActive = 1',
-      [req.email.toLowerCase()]
-    );
+    const user = await prisma.user.findFirst({
+      where: {
+        email: req.email.toLowerCase(),
+        isActive: true,
+      },
+    });
 
     if (!user) {
       throw new Error('Email o contraseña incorrectos');
     }
 
     // Verificar contraseña
-    const passwordMatch = bcrypt.compareSync(req.password, user.password!);
+    const passwordMatch = bcrypt.compareSync(req.password, user.password);
 
     if (!passwordMatch) {
       throw new Error('Email o contraseña incorrectos');
     }
 
     // Generar token
-    const token = this.generateToken(user);
+    const token = this.generateToken({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role as UserRole,
+      avatar: user.avatar,
+      bio: user.bio,
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    });
 
     return {
       id: user.id,
       email: user.email,
       displayName: user.displayName,
       role: user.role as UserRole,
-      avatar: user.avatar,
+      avatar: user.avatar || undefined,
       token,
     };
   }
@@ -132,60 +143,101 @@ export class AuthService {
    * Obtiene un usuario por ID
    */
   async getUserById(userId: number): Promise<User | null> {
-    const user = this.db.getOne<User>(
-      'SELECT id, email, displayName, role, avatar, bio, createdAt, updatedAt, isActive FROM users WHERE id = ?',
-      [userId]
-    );
-    return user || null;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) return null;
+
+    return {
+      id: user.id,
+      email: user.email,
+      password: user.password,
+      displayName: user.displayName,
+      role: user.role as UserRole,
+      avatar: user.avatar || undefined,
+      bio: user.bio || undefined,
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    };
   }
 
   /**
    * Actualiza un usuario
    */
   async updateUser(userId: number, data: Partial<User>): Promise<User> {
-    const updates: string[] = [];
-    const values: any[] = [];
+    // Obtener usuario actual para asegurar que existe
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
 
-    if (data.displayName !== undefined) {
-      updates.push('displayName = ?');
-      values.push(data.displayName);
+    if (!existingUser) {
+      throw new Error('Usuario no encontrado');
     }
 
-    if (data.bio !== undefined) {
-      updates.push('bio = ?');
-      values.push(data.bio);
+    // Construir objeto de actualización
+    const updateData: any = {};
+    if (data.displayName !== undefined) updateData.displayName = data.displayName;
+    if (data.bio !== undefined) updateData.bio = data.bio;
+    if (data.avatar !== undefined) updateData.avatar = data.avatar;
+
+    // Si no hay cambios, retornar usuario actual
+    if (Object.keys(updateData).length === 0) {
+      return {
+        id: existingUser.id,
+        email: existingUser.email,
+        password: existingUser.password,
+        displayName: existingUser.displayName,
+        role: existingUser.role as UserRole,
+        avatar: existingUser.avatar || undefined,
+        bio: existingUser.bio || undefined,
+        isActive: existingUser.isActive,
+        createdAt: existingUser.createdAt.toISOString(),
+        updatedAt: existingUser.updatedAt.toISOString(),
+      };
     }
 
-    if (data.avatar !== undefined) {
-      updates.push('avatar = ?');
-      values.push(data.avatar);
-    }
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
 
-    if (updates.length === 0) {
-      const user = await this.getUserById(userId);
-      if (!user) throw new Error('Usuario no encontrado');
-      return user;
-    }
-
-    updates.push('updatedAt = CURRENT_TIMESTAMP');
-    values.push(userId);
-
-    this.db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
-
-    const user = await this.getUserById(userId);
-    if (!user) throw new Error('Usuario no encontrado');
-    return user;
+    return {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      password: updatedUser.password,
+      displayName: updatedUser.displayName,
+      role: updatedUser.role as UserRole,
+      avatar: updatedUser.avatar || undefined,
+      bio: updatedUser.bio || undefined,
+      isActive: updatedUser.isActive,
+      createdAt: updatedUser.createdAt.toISOString(),
+      updatedAt: updatedUser.updatedAt.toISOString(),
+    };
   }
 
   /**
    * Obtiene todos los usuarios (solo para admin)
    */
   async getAllUsers(limit: number = 50, offset: number = 0): Promise<User[]> {
-    return this.db.getAll<User>(
-      `SELECT id, email, displayName, role, avatar, bio, createdAt, updatedAt, isActive 
-       FROM users LIMIT ? OFFSET ?`,
-      [limit, offset]
-    );
+    const users = await prisma.user.findMany({
+      take: limit,
+      skip: offset,
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      password: user.password,
+      displayName: user.displayName,
+      role: user.role as UserRole,
+      avatar: user.avatar || undefined,
+      bio: user.bio || undefined,
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    }));
   }
 
   /**
@@ -194,11 +246,18 @@ export class AuthService {
   async deleteUser(userId: number): Promise<void> {
     // No permitir eliminar al admin principal
     const user = await this.getUserById(userId);
-    if (user?.email === 'admin@radiocesar.local') {
+    
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+    
+    if (user.email === 'admin@radiocesar.local') {
       throw new Error('No se puede eliminar el administrador principal');
     }
 
-    this.db.run('DELETE FROM users WHERE id = ?', [userId]);
+    await prisma.user.delete({
+      where: { id: userId },
+    });
   }
 
   /**
@@ -207,17 +266,31 @@ export class AuthService {
   async updateUserRole(userId: number, role: UserRole): Promise<User> {
     // No permitir cambiar el rol del admin principal
     const user = await this.getUserById(userId);
-    if (user?.email === 'admin@radiocesar.local') {
+    
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
+    
+    if (user.email === 'admin@radiocesar.local') {
       throw new Error('No se puede cambiar el rol del administrador principal');
     }
 
-    this.db.run(
-      'UPDATE users SET role = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
-      [role, userId]
-    );
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { role },
+    });
 
-    const updatedUser = await this.getUserById(userId);
-    if (!updatedUser) throw new Error('Usuario no encontrado');
-    return updatedUser;
+    return {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      password: updatedUser.password,
+      displayName: updatedUser.displayName,
+      role: updatedUser.role as UserRole,
+      avatar: updatedUser.avatar || undefined,
+      bio: updatedUser.bio || undefined,
+      isActive: updatedUser.isActive,
+      createdAt: updatedUser.createdAt.toISOString(),
+      updatedAt: updatedUser.updatedAt.toISOString(),
+    };
   }
 }

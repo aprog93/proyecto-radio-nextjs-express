@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Calendar, MapPin, Loader2, Users } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api, Event as EventType } from "@/lib/api";
 import { useApi } from "@/hooks/use-api";
 import { useAuth } from "@/context/AuthContext";
@@ -78,13 +79,13 @@ const Events = () => {
                 const isFull = spotsLeft !== undefined && spotsLeft <= 0;
 
                 return (
-                  <motion.div
-                    key={event.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors flex flex-col"
-                  >
+                  <Link key={event.id} to={`/event/${event.id}`}>
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors flex flex-col h-full"
+                    >
                     <div className="h-40 bg-secondary flex items-center justify-center overflow-hidden">
                       {event.image ? (
                         <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
@@ -140,6 +141,7 @@ const Events = () => {
                       )}
                     </div>
                   </motion.div>
+                  </Link>
                 );
               })}
             </div>

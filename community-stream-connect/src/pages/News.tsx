@@ -1,6 +1,7 @@
+import { SkeletonArticleRow } from "@/components/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { Search, Newspaper, Clock, Loader2 } from "lucide-react";
+import { Search, Newspaper, Clock } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -56,8 +57,10 @@ const News = () => {
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <div className="space-y-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonArticleRow key={i} />
+              ))}
             </div>
           ) : newsList.length === 0 ? (
             <p className="text-center text-muted-foreground py-12">{t("news.noResults") || "No se encontraron noticias."}</p>

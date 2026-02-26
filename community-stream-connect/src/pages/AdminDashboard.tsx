@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SkeletonCard, SkeletonTable } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import UserDetailModal from '@/components/admin/UserDetailModal';
 import CreateUserForm from '@/components/admin/CreateUserForm';
@@ -167,8 +168,10 @@ const AdminDashboard = () => {
 
           {/* Statistics Cards */}
           {statsLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
             </div>
           ) : statsError ? (
             <div className="text-center text-destructive py-8">
@@ -204,9 +207,7 @@ const AdminDashboard = () => {
 
             {/* Users Table */}
             {usersLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
+              <SkeletonTable rows={10} cols={5} />
             ) : usersError ? (
               <div className="text-center text-destructive py-8">
                 <p>{usersError}</p>

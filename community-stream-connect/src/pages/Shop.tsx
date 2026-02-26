@@ -1,6 +1,7 @@
+import { SkeletonArticleCard } from "@/components/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { ShoppingBag, Search, Loader2, DollarSign } from "lucide-react";
+import { ShoppingBag, Search, DollarSign } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api, Product as ProductType } from "@/lib/api";

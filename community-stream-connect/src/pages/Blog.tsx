@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { Search, Newspaper, Clock, Loader2 } from "lucide-react";
+import { Search, Newspaper, Clock } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useApi } from "@/hooks/use-api";
+import { SkeletonArticleCard } from "@/components/ui/skeleton";
 
 const Blog = () => {
   const { t } = useTranslation();
@@ -97,8 +98,10 @@ const Blog = () => {
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <SkeletonArticleCard key={i} />
+              ))}
             </div>
           ) : blogs.length === 0 ? (
             <p className="text-center text-muted-foreground py-12">{t("blog.noResults") || "No se encontraron blogs."}</p>

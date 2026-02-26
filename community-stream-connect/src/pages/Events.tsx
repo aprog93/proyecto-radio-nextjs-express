@@ -1,6 +1,7 @@
+import { SkeletonArticleCard } from "@/components/ui/skeleton";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, Loader2, Users } from "lucide-react";
+import { Calendar, MapPin, Users } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, Event as EventType } from "@/lib/api";

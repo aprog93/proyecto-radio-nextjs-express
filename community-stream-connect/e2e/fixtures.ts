@@ -11,13 +11,13 @@ import { Page, expect } from '@playwright/test';
 
 /**
  * Test user accounts for E2E testing
- * These should be pre-created on the production server
+ * Real credentials from production server
  */
 export const TEST_USERS = {
   admin: {
-    email: 'admin@test.com',
-    password: 'Admin@12345',
-    displayName: 'Admin Test User',
+    email: 'alfredfonher@gmail.com',
+    password: 'Fcb1899Nov29@',
+    displayName: 'Admin User',
     role: 'admin',
   },
   listener: {

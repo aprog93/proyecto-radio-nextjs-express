@@ -34,6 +34,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Portal from "./pages/Portal";
 import ProfileSettings from "./pages/ProfileSettings";
+import AdminDashboard from "./pages/AdminDashboard";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import { Dashboard, NowPlayingPage as NowPlayingPageModule, PlaylistsPage } from "@/modules/azuracast";
@@ -79,6 +80,7 @@ const App = () => (
                   <Route path="/register" element={<Register />} />
                    <Route path="/portal" element={<Portal />} />
                    <Route path="/portal/settings" element={<ProfileSettings />} />
+                   <Route path="/admin" element={<AdminDashboard />} />
                    <Route path="/reset-password" element={<ResetPassword />} />
                    <Route path="/stream-dashboard" element={<Dashboard />} />
                    <Route path="/stream-now-playing" element={<NowPlayingPageModule />} />

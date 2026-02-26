@@ -280,5 +280,58 @@
   "nowPlaying": {
     "nextUp": "À suivre",
     "history": "Historique récent"
+  },
+  "admin": {
+    "title": "Tableau de Bord Administrateur",
+    "subtitle": "Gérez les utilisateurs, le contenu et les statistiques",
+    "not_authorized": "Vous n'avez pas la permission d'accéder à cette page",
+    "create_user": "Créer Utilisateur",
+    "create_new_user": "Créer Nouvel Utilisateur",
+    "create_user_description": "Remplissez le formulaire pour ajouter un nouvel utilisateur au système",
+    "user_management": "Gestion des Utilisateurs",
+    "search_users": "Rechercher des utilisateurs...",
+    "no_users_found": "Aucun utilisateur trouvé",
+    "user_details": "Détails de l'Utilisateur",
+    "user_created": "Utilisateur créé avec succès",
+    "user_updated": "Utilisateur mis à jour avec succès",
+    "user_deleted": "Utilisateur supprimé avec succès",
+    "create_failed": "Échec de la création de l'utilisateur",
+    "update_failed": "Échec de la mise à jour de l'utilisateur",
+    "delete_failed": "Échec de la suppression de l'utilisateur",
+    "confirm_delete_user": "Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action ne peut pas être annulée.",
+    "no_changes": "Aucune modification à enregistrer",
+    "password": "Mot de passe",
+    "update_role": "Mettre à Jour le Rôle",
+    "close": "Fermer",
+    "columns": {
+      "email": "Email",
+      "name": "Nom",
+      "role": "Rôle",
+      "joined": "Inscrit",
+      "actions": "Actions"
+    },
+    "role": {
+      "admin": "Administrateur",
+      "listener": "Auditeur"
+    },
+    "stats": {
+      "total_users": "Utilisateurs Totaux",
+      "active_users": "Utilisateurs Actifs",
+      "admins": "{count} admin(s)",
+      "content": "Contenu",
+      "published": "publié",
+      "donations": "Dons",
+      "transactions": "transactions"
+    },
+    "page": "Page {current} sur {total}",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "edit": "Éditer",
+    "delete": "Supprimer",
+    "view_details": "Voir les détails",
+    "validation": {
+      "required_fields": "Veuillez remplir tous les champs obligatoires",
+      "password_length": "Le mot de passe doit contenir au moins 6 caractères"
+    }
   }
 }

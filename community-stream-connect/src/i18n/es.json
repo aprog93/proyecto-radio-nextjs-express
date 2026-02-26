@@ -280,5 +280,58 @@
   "nowPlaying": {
     "nextUp": "A continuación",
     "history": "Historial reciente"
+  },
+  "admin": {
+    "title": "Panel de Administración",
+    "subtitle": "Gestiona usuarios, contenido y estadísticas",
+    "not_authorized": "No tienes permiso para acceder a esta página",
+    "create_user": "Crear Usuario",
+    "create_new_user": "Crear Nuevo Usuario",
+    "create_user_description": "Completa el formulario para añadir un nuevo usuario al sistema",
+    "user_management": "Gestión de Usuarios",
+    "search_users": "Buscar usuarios...",
+    "no_users_found": "No se encontraron usuarios",
+    "user_details": "Detalles del Usuario",
+    "user_created": "Usuario creado exitosamente",
+    "user_updated": "Usuario actualizado exitosamente",
+    "user_deleted": "Usuario eliminado exitosamente",
+    "create_failed": "Error al crear el usuario",
+    "update_failed": "Error al actualizar el usuario",
+    "delete_failed": "Error al eliminar el usuario",
+    "confirm_delete_user": "¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.",
+    "no_changes": "No hay cambios para guardar",
+    "password": "Contraseña",
+    "update_role": "Actualizar Rol",
+    "close": "Cerrar",
+    "columns": {
+      "email": "Email",
+      "name": "Nombre",
+      "role": "Rol",
+      "joined": "Se unió",
+      "actions": "Acciones"
+    },
+    "role": {
+      "admin": "Administrador",
+      "listener": "Oyente"
+    },
+    "stats": {
+      "total_users": "Usuarios Totales",
+      "active_users": "Usuarios Activos",
+      "admins": "{count} admin(s)",
+      "content": "Contenido",
+      "published": "publicado",
+      "donations": "Donaciones",
+      "transactions": "transacciones"
+    },
+    "page": "Página {current} de {total}",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "view_details": "Ver detalles",
+    "validation": {
+      "required_fields": "Por favor completa todos los campos requeridos",
+      "password_length": "La contraseña debe tener al menos 6 caracteres"
+    }
   }
 }

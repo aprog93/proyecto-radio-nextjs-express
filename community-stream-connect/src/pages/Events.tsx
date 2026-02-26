@@ -1,44 +1,60 @@
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-
-type EventoEstado = Database["public"]["Enums"]["evento_estado"];
-
-interface Evento {
-  id: string;
-  titulo: string;
-  descripcion: string | null;
-  fecha_inicio: string;
-  ubicacion: string | null;
-  estado: EventoEstado;
-  imagen_url: string | null;
-}
-
-const statusBadge: Record<EventoEstado, { label: string; cls: string }> = {
-  proximo: { label: "Próximo", cls: "bg-primary/10 text-primary" },
-  en_vivo: { label: "En vivo", cls: "bg-destructive/10 text-destructive" },
-  finalizado: { label: "Finalizado", cls: "bg-muted text-muted-foreground" },
-  cancelado: { label: "Cancelado", cls: "bg-muted text-muted-foreground" },
-};
+import { Calendar, MapPin, Loader2, Users } from "lucide-react";
+import { useState } from "react";
+import { api, Event as EventType } from "@/lib/api";
+import { useApi } from "@/hooks/use-api";
+import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const Events = () => {
   const { t } = useTranslation();
-  const [eventos, setEventos] = useState<Evento[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
+  const [registeredEvents, setRegisteredEvents] = useState<Set<number>>(new Set());
+  const [loadingRegister, setLoadingRegister] = useState<Set<number>>(new Set());
 
-  useEffect(() => {
-    supabase
-      .from("eventos")
-      .select("id, titulo, descripcion, fecha_inicio, ubicacion, estado, imagen_url")
-      .order("fecha_inicio", { ascending: true })
-      .then(({ data }) => {
-        setEventos(data || []);
-        setLoading(false);
+  // Fetch events from backend (upcoming events)
+  const { data: eventsData, loading, error } = useApi(
+    () => api.events.getPublished(1, 50, undefined, true),
+    { autoFetch: true }
+  );
+
+  const events = eventsData?.events || [];
+
+  const handleRegister = async (eventId: number) => {
+    if (!isAuthenticated) {
+      toast({ title: "Error", description: "Debes iniciar sesión para registrarte", variant: "destructive" });
+      return;
+    }
+
+    setLoadingRegister((prev) => new Set(prev).add(eventId));
+    try {
+      await api.events.register(eventId);
+      setRegisteredEvents((prev) => new Set(prev).add(eventId));
+      toast({ title: "¡Éxito!", description: "Te has registrado al evento" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error al registrarse";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setLoadingRegister((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
       });
-  }, []);
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="min-h-screen py-20 px-4 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive font-semibold">{t("events.error") || "Error cargando eventos"}</p>
+          <p className="text-muted-foreground text-sm">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-20 px-4">
@@ -48,44 +64,80 @@ const Events = () => {
           <p className="text-muted-foreground mb-10">{t("events.subtitle")}</p>
 
           {loading ? (
-            <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-          ) : eventos.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12">No hay eventos disponibles.</p>
+            <div className="flex justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : events.length === 0 ? (
+            <p className="text-center text-muted-foreground py-12">{t("events.noResults") || "No hay eventos disponibles."}</p>
           ) : (
             <div className="grid md:grid-cols-2 gap-6">
-              {eventos.map((event, i) => {
-                const badge = statusBadge[event.estado];
+              {events.map((event, i) => {
+                const isRegistered = registeredEvents.has(event.id);
+                const isLoading = loadingRegister.has(event.id);
+                const spotsLeft = event.capacity ? event.capacity - event.registered : undefined;
+                const isFull = spotsLeft !== undefined && spotsLeft <= 0;
+
                 return (
                   <motion.div
                     key={event.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.1 }}
-                    className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors"
+                    className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors flex flex-col"
                   >
                     <div className="h-40 bg-secondary flex items-center justify-center overflow-hidden">
-                      {event.imagen_url ? (
-                        <img src={event.imagen_url} alt="" className="w-full h-full object-cover" />
+                      {event.image ? (
+                        <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
                       ) : (
                         <Calendar className="w-12 h-12 text-primary/30" />
                       )}
                     </div>
-                    <div className="p-6">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${badge.cls}`}>
-                          {badge.label}
+                    <div className="p-6 flex flex-col flex-1">
+                      <h3 className="font-display text-lg font-semibold text-foreground mb-2">{event.title}</h3>
+                      {event.description && <p className="text-sm text-muted-foreground mb-4 flex-1">{event.description}</p>}
+
+                      <div className="flex flex-col gap-2 text-xs text-muted-foreground mb-4">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> {new Date(event.startDate).toLocaleDateString()} - {new Date(event.endDate).toLocaleDateString()}
                         </span>
-                      </div>
-                      <h3 className="font-display text-lg font-semibold text-foreground mb-2">{event.titulo}</h3>
-                      {event.descripcion && (
-                        <p className="text-sm text-muted-foreground mb-4">{event.descripcion}</p>
-                      )}
-                      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(event.fecha_inicio).toLocaleDateString()}</span>
-                        {event.ubicacion && (
-                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {event.ubicacion}</span>
+                        {event.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" /> {event.location}
+                          </span>
+                        )}
+                        {event.capacity && (
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" /> {event.registered}/{event.capacity} registrados
+                          </span>
                         )}
                       </div>
+
+                      {isAuthenticated && (
+                        <button
+                          onClick={() => handleRegister(event.id)}
+                          disabled={isLoading || isFull || isRegistered}
+                          className={`w-full px-4 py-2 rounded-lg font-semibold transition-all ${
+                            isRegistered
+                              ? "bg-green-500/10 text-green-600 cursor-default"
+                              : isFull
+                                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                                : "bg-primary text-primary-foreground hover:opacity-90"
+                          } disabled:opacity-50`}
+                        >
+                          {isLoading ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              {t("common.loading") || "Cargando..."}
+                            </span>
+                          ) : isRegistered ? (
+                            t("events.registered") || "Registrado"
+                          ) : isFull ? (
+                            t("events.full") || "Evento lleno"
+                          ) : (
+                            t("events.register") || "Registrarse"
+                          )}
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -99,3 +151,4 @@ const Events = () => {
 };
 
 export default Events;
+

@@ -1,50 +1,45 @@
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Search, Newspaper, Clock, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-
-interface Noticia {
-  id: string;
-  titulo: string;
-  extracto: string | null;
-  imagen_url: string | null;
-  publicado_en: string | null;
-  slug: string;
-  categoria_id: string | null;
-}
-
-interface Categoria {
-  id: string;
-  nombre: string;
-}
+import { useState, useMemo } from "react";
+import { api } from "@/lib/api";
+import { useApi } from "@/hooks/use-api";
 
 const Blog = () => {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [noticias, setNoticias] = useState<Noticia[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const [noticiasRes, categoriasRes] = await Promise.all([
-        supabase.from("noticias").select("id, titulo, extracto, imagen_url, publicado_en, slug, categoria_id").eq("estado", "publicado").order("publicado_en", { ascending: false }),
-        supabase.from("categorias").select("id, nombre"),
-      ]);
-      setNoticias(noticiasRes.data || []);
-      setCategorias(categoriasRes.data || []);
-      setLoading(false);
-    };
-    fetchData();
-  }, []);
+  // Fetch blogs from backend
+  const { data: blogsData, loading, error } = useApi(
+    () => api.blogs.getPublished(page, 12, categoryFilter !== "all" ? categoryFilter : undefined, search || undefined),
+    { autoFetch: true, deps: [page, categoryFilter, search] }
+  );
 
-  const filtered = noticias.filter((a) => {
-    const matchSearch = a.titulo.toLowerCase().includes(search.toLowerCase());
-    const matchCat = categoryFilter === "all" || a.categoria_id === categoryFilter;
-    return matchSearch && matchCat;
-  });
+  const blogs = useMemo(() => blogsData?.blogs || [], [blogsData?.blogs]);
+  const total = useMemo(() => blogsData?.total || 0, [blogsData?.total]);
+  const totalPages = Math.ceil(total / 12);
+
+  // Extract unique categories from blogs
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    blogs.forEach((blog) => {
+      if (blog.category) cats.add(blog.category);
+    });
+    return Array.from(cats).sort();
+  }, [blogs]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen py-20 px-4 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive font-semibold">{t("blog.error") || "Error cargando blogs"}</p>
+          <p className="text-muted-foreground text-sm">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-20 px-4">
@@ -60,66 +55,111 @@ const Blog = () => {
                 type="text"
                 placeholder={t("blog.searchPlaceholder")}
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
                 className="w-full pl-10 pr-4 py-3 rounded-xl bg-secondary border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => setCategoryFilter("all")}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${categoryFilter === "all" ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}
+                onClick={() => {
+                  setCategoryFilter("all");
+                  setPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  categoryFilter === "all"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                }`}
               >
                 {t("blog.all")}
               </button>
-              {categorias.map((cat) => (
+              {categories.map((cat) => (
                 <button
-                  key={cat.id}
-                  onClick={() => setCategoryFilter(cat.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${categoryFilter === cat.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}
+                  key={cat}
+                  onClick={() => {
+                    setCategoryFilter(cat);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    categoryFilter === cat
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  }`}
                 >
-                  {cat.nombre}
+                  {cat}
                 </button>
               ))}
             </div>
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-          ) : filtered.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12">No se encontraron noticias.</p>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filtered.map((article, i) => (
-                <motion.div
-                  key={article.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors group"
-                >
-                  <div className="h-44 bg-secondary flex items-center justify-center overflow-hidden">
-                    {article.imagen_url ? (
-                      <img src={article.imagen_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <Newspaper className="w-12 h-12 text-primary/30" />
-                    )}
-                  </div>
-                  <div className="p-6">
-                    <h3 className="font-display text-lg font-semibold text-foreground mt-1 mb-2 group-hover:text-primary transition-colors">
-                      {article.titulo}
-                    </h3>
-                    {article.extracto && (
-                      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{article.extracto}</p>
-                    )}
-                    {article.publicado_en && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" /> {new Date(article.publicado_en).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+            <div className="flex justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
+          ) : blogs.length === 0 ? (
+            <p className="text-center text-muted-foreground py-12">{t("blog.noResults") || "No se encontraron blogs."}</p>
+          ) : (
+            <>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {blogs.map((article, i) => (
+                  <motion.div
+                    key={article.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/30 transition-colors group cursor-pointer"
+                  >
+                    <div className="h-44 bg-secondary flex items-center justify-center overflow-hidden">
+                      {article.image ? (
+                        <img src={article.image} alt={article.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <Newspaper className="w-12 h-12 text-primary/30" />
+                      )}
+                    </div>
+                    <div className="p-6">
+                      <h3 className="font-display text-lg font-semibold text-foreground mt-1 mb-2 group-hover:text-primary transition-colors">
+                        {article.title}
+                      </h3>
+                      {article.excerpt && <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{article.excerpt}</p>}
+                      <div className="flex items-center justify-between">
+                        {article.publishedAt && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3" /> {new Date(article.publishedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                        {article.viewCount && <span className="text-xs text-muted-foreground">{article.viewCount} visitas</span>}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex justify-center gap-2 mt-8">
+                  <button
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                    disabled={page === 1}
+                    className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground disabled:opacity-50 hover:opacity-80 transition-opacity"
+                  >
+                    {t("common.previous") || "Anterior"}
+                  </button>
+                  <span className="px-4 py-2 text-sm text-muted-foreground">
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage(Math.min(totalPages, page + 1))}
+                    disabled={page === totalPages}
+                    className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground disabled:opacity-50 hover:opacity-80 transition-opacity"
+                  >
+                    {t("common.next") || "Siguiente"}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </motion.div>
       </div>
